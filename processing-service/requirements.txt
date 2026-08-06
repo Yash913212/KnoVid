@@ -1,0 +1,40 @@
+# KnoVid processing service — Python dependencies
+#
+# Pinned for Python 3.13. To install on other versions, adjust torch/torchaudio
+# (and transitive pins) to match your interpreter.
+#
+# torch / torchaudio: install with the official installer matching your machine.
+# The PyTorch CPU index keeps the download small on machines without a GPU:
+#   pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+torch>=2.6
+torchaudio>=2.6
+
+fastapi==0.111.0
+uvicorn[standard]==0.30.1
+httpx==0.27.0
+# pydantic==2.7.4 predates Python 3.13 (its pydantic-core needs a Rust build).
+# >=2.9 ships cp313 wheels and satisfies fastapi's <3 constraint.
+pydantic>=2.9,<3
+python-multipart==0.0.9
+python-dotenv==1.0.1
+
+# Whisper transcription (local; also handles non-English -> English).
+# NOTE: v20240930's legacy setup.py (exec-in-function version read) breaks on
+# CPython 3.13, so pip can't build it. It is vendored instead:
+#   git clone --branch v20240930 https://github.com/openai/whisper.git
+#   cp -r whisper <venv>/lib/python3.13/site-packages/whisper
+# Runtime deps (all install cleanly): tiktoken numba more-itertools tqdm.
+openai-whisper==20240930
+
+# Downloads the source video from any supported site (YouTube, Vimeo,
+# Twitter/X, Facebook, Instagram, TikTok, Twitch, direct MP4 URLs, …).
+yt-dlp
+
+# Knowledge-graph extraction.
+spacy>=3.8
+scikit-learn>=1.6
+numpy>=2.1
+
+# Optional speaker diarization. Requires a HF_TOKEN at runtime; transcription
+# still works without it. Needs a build that matches your Python version.
+# pyannote.audio>=3.3

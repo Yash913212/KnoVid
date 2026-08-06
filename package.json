@@ -1,0 +1,18 @@
+{
+  "name": "knovid",
+  "version": "0.1.0",
+  "private": true,
+  "description": "KnoVid \u2014 video to knowledge: transcripts, speaker labels, knowledge graphs, notes, quizzes, and Q&A",
+  "scripts": {
+    "dev": "concurrently -n backend,processor,frontend -c blue,magenta,green \"npm run dev:backend\" \"npm run dev:processor\" \"npm run dev:frontend\"",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:processor": ".venv/bin/python -m uvicorn --app-dir processing-service main:app --reload --port 8000 --env-file processing-service/.env",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "install:all": "npm --prefix backend install && npm --prefix frontend install",
+    "setup:python": "cd processing-service && ../.venv/bin/pip install --no-build-isolation -r requirements.txt",
+    "setup:spacy": ".venv/bin/python -m spacy download en_core_web_sm"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
