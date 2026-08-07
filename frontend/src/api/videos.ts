@@ -8,6 +8,7 @@ export interface Video {
   originalName: string
   url?: string
   filePath?: string
+  thumbnail?: string
   duration: number
   status: VideoStatus
   errorMessage?: string

@@ -10,6 +10,7 @@ import { fadeUpLift, scaleFade, tw, staggerContainer, staggerItem, transitions }
 import { useToast } from '../components/Toast'
 import { formatTime } from '../utils'
 import { getResume } from '../lib/resume'
+import { FileText, Sparkles } from 'lucide-react'
 
 const FeatureShowcase = lazy(() => import('../components/FeatureShowcase'))
 
@@ -51,6 +52,40 @@ const PIPELINE = [
 ]
 
 type FlowState = 'idle' | 'active' | 'done'
+
+// ─── Mock "completed" universes ─────────────────────────────────────
+// Injected ahead of real videos so the dashboard instantly shows the
+// end-state: Transcribe → Graph → AI Summary cards.
+const MOCK_SUCCESS_VIDEOS: Video[] = [
+  {
+    _id: 'mock-1',
+    source: 'url',
+    originalName: 'Attention Is All You Need — Transformer Architecture',
+    url: 'https://youtube.com/mock1',
+    thumbnail: 'https://images.unsplash.com/photo-1620712940408-6d0e7c0975e5?w=500&q=80',
+    duration: 2684,
+    status: 'done',
+    createdAt: new Date().toISOString(),
+  },
+  {
+    _id: 'mock-2',
+    source: 'url',
+    originalName: 'Stanford CS229 — Machine Learning Lecture 2',
+    thumbnail: 'https://images.unsplash.com/photo-1551288218-87f3a0c46f42?w=500&q=80',
+    duration: 5421,
+    status: 'done',
+    createdAt: new Date().toISOString(),
+  },
+  {
+    _id: 'mock-3',
+    source: 'url',
+    originalName: 'The Mathematics of Neural Networks',
+    thumbnail: 'https://images.unsplash.com/photo-1635075647321-1f6d40e11e86?w=500&q=80',
+    duration: 3102,
+    status: 'done',
+    createdAt: new Date().toISOString(),
+  },
+]
 
 // Derive the 4-stage pipeline state from the furthest-along live import.
 // Statuses: queued(0) → downloading(1) → transcribing(2) → analyzing(3) → done(4).
@@ -255,7 +290,8 @@ export default function Dashboard() {
 
   const activeVideos = videos.filter((v) => isProcessing(v.status))
   const doneVideos = videos.filter((v) => v.status === 'done' || v.status === 'failed')
-  const visibleVideos = doneVideos.filter((v) => v.originalName.toLowerCase().includes(query.trim().toLowerCase()))
+  const realLibraryVideos = doneVideos.filter((v) => v.originalName.toLowerCase().includes(query.trim().toLowerCase()))
+  const displayVideos = [...MOCK_SUCCESS_VIDEOS, ...realLibraryVideos]
   const isEmpty = !loading && videos.length === 0
   const noSuccessful = !loading && !doneVideos.some((v) => v.status === 'done')
 
@@ -412,7 +448,7 @@ export default function Dashboard() {
                     </div>
                   ))}
                 </div>
-              ) : visibleVideos.length === 0 ? (
+              ) : displayVideos.length === 0 ? (
                 <motion.div
                   className="rounded-3xl border border-dashed border-white/60 bg-white/50 px-6 py-14 text-center backdrop-blur-xl dark:border-white/15 dark:bg-white/[0.02]"
                   initial={{ opacity: 0, y: 8 }}
@@ -439,8 +475,8 @@ export default function Dashboard() {
                   variants={staggerContainer({ delay: 0.06 })}
                 >
                   <AnimatePresence mode="popLayout">
-                    {visibleVideos.map((v) => (
-                      <KnowledgeCard key={v._id} video={v} onClick={() => navigate(`/video/${v._id}`)} onRetry={handleRetry} />
+                    {displayVideos.map((v) => (
+                      <KnowledgeCard key={v._id} video={v} onClick={() => navigate(`/video/${v._id}`)} onRetry={handleRetry} isMock={v._id.startsWith('mock-')} />
                     ))}
                   </AnimatePresence>
                 </motion.div>
@@ -988,19 +1024,16 @@ function MagicPill({ tint, children }: { tint: 'ember' | 'orchid'; children: Rea
 }
 
 // Glassy "reveal" pill for finished instructions — the star spark is always Tangerine.
-function DonePill({ label, tint, delay }: { label: string; tint: 'ember' | 'orchid'; delay?: number }) {
-  const cls = {
-    ember: 'border-[#FF6B35]/40 bg-[#FF6B35]/[0.06] text-[#C2410C] dark:border-[#FF6B35]/35 dark:bg-[#FF6B35]/[0.08] dark:text-[#FF8A5C]',
-    orchid: 'border-[#D946EF]/40 bg-[#D946EF]/[0.06] text-[#A21CAF] dark:border-[#D946EF]/35 dark:bg-[#D946EF]/[0.08] dark:text-[#E879F9]',
-  }[tint]
+function DonePill({ icon, label, color, delay }: { icon: React.ReactNode; label: string; color: string; delay?: number }) {
   return (
     <motion.span
       initial={{ opacity: 0, scale: 0.5, y: 8 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
       transition={{ type: 'spring', stiffness: 420, damping: 22, delay }}
-      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold backdrop-blur-md ${cls}`}
+      className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-xs font-medium backdrop-blur-xl"
+      style={{ color }}
     >
-      <span className="text-[#FF6B35] dark:text-[#FF8A5C]">✦</span>
+      {icon}
       {label}
     </motion.span>
   )
@@ -1016,11 +1049,20 @@ const PROGRESS_BY_STATUS: Record<VideoStatus, number> = {
   failed: 0,
 }
 
-function KnowledgeCard({ video, onClick, onRetry }: { video: Video; onClick: () => void; onRetry: (id: string) => void }) {
+function KnowledgeCard({ video, onClick, onRetry, isMock = false }: { video: Video; onClick: () => void; onRetry: (id: string) => void; isMock?: boolean }) {
   const failed = video.status === 'failed'
   const processing = isProcessing(video.status)
   const done = video.status === 'done'
   const resume = done ? getResume(video._id) : null
+  const { toast } = useToast()
+
+  const open = () => {
+    if (isMock) {
+      toast('Showcase video — upload your own to explore the full experience', 'info')
+      return
+    }
+    onClick()
+  }
 
   // Detect the processing → done transition so the card can "pop" (spring).
   const [popCount, setPopCount] = useState(0)
@@ -1043,27 +1085,29 @@ function KnowledgeCard({ video, onClick, onRetry }: { video: Video; onClick: () 
     >
       <motion.div
         key={popCount}
-        onClick={onClick}
+        onClick={open}
         role="button"
         tabIndex={0}
         aria-label={`Open ${video.originalName}`}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault()
-            onClick()
+            open()
           }
         }}
         initial={popCount > 0 ? { scale: 0.92 } : false}
         animate={{ scale: 1 }}
         transition={{ type: 'spring', stiffness: 380, damping: 15 }}
         whileHover={failed ? { scale: 1.01 } : { y: -6, scale: 1.01 }}
-        className={`group relative cursor-pointer overflow-hidden rounded-3xl border bg-white/75 backdrop-blur-xl transition-[border-color,box-shadow,background-color] duration-300 hover:bg-white/95 dark:bg-black/40 dark:backdrop-blur-xl dark:border-white/10 dark:shadow-2xl dark:hover:bg-black/50 ${
+        className={`group relative cursor-pointer overflow-hidden rounded-3xl border bg-white/75 backdrop-blur-xl transition-[border-color,box-shadow,background-color] duration-300 hover:bg-white/95 dark:bg-white/[0.03] dark:border-white/10 dark:backdrop-blur-xl dark:shadow-2xl dark:hover:bg-white/[0.06] ${
           failed
-            ? 'border-red-500/20 shadow-[0_0_25px_-6px_rgba(239,68,68,0.2)] dark:border-red-500/25'
+            ? 'border-red-500/20 shadow-[0_0_25px_-6px_rgba(239,68,68,0.2)] dark:border-red-500/25 dark:hover:shadow-[0_0_30px_-10px_rgba(239,68,68,0.5)]'
             : processing
               ? 'border-[#D946EF]/30 shadow-[0_0_30px_-5px_rgba(217,70,239,0.4)] animate-pulse dark:border-[#D946EF]/30 dark:shadow-[0_0_38px_-6px_rgba(217,70,239,0.5)]'
-              : 'border-white/10 shadow-[0_18px_60px_rgba(15,23,42,0.14)]'
-        } hover:shadow-[0_28px_80px_rgb(15_23_42/0.22)] dark:hover:shadow-[0_36px_100px_rgb(0_0_0/0.6)]`}
+              : done
+                ? 'border-white/10 shadow-[0_18px_60px_rgba(15,23,42,0.14)] hover:shadow-[0_0_30px_-10px_rgba(255,107,53,0.8)] dark:border-white/10 dark:shadow-[0_18px_60px_rgba(0,0,0,0.4)]'
+                : 'border-white/10 shadow-[0_18px_60px_rgba(15,23,42,0.14)]'
+        } dark:hover:shadow-[0_36px_100px_rgb(0_0_0/0.6)]`}
       >
         <div className="pointer-events-none absolute -inset-px z-10 rounded-3xl opacity-0 transition-opacity duration-300 group-hover:opacity-100 dark:bg-[radial-gradient(120%_80%_at_50%_0%,rgb(217 70 239/0.18),transparent_60%)]" />
 
@@ -1073,6 +1117,14 @@ function KnowledgeCard({ video, onClick, onRetry }: { video: Video; onClick: () 
               <ThumbWave />
             </div>
           </div>
+          {video.thumbnail && (
+            <img
+              src={video.thumbnail}
+              alt=""
+              loading="lazy"
+              className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+            />
+          )}
           {/* Shimmering glass for queued/downloading */}
           {(video.status === 'queued' || video.status === 'downloading') && (
             <>
@@ -1094,14 +1146,26 @@ function KnowledgeCard({ video, onClick, onRetry }: { video: Video; onClick: () 
           <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/50 to-transparent" />
 
           {done && (
-            <motion.span
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={transitions.contentIn}
-              className="absolute left-3 top-3"
-            >
-              <MagicPill tint="ember">✦ Transcribed</MagicPill>
-            </motion.span>
+            <div className="absolute left-3 top-3 flex flex-wrap gap-1.5">
+              <motion.span
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={transitions.contentIn}
+                className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-xs font-medium text-[#FF6B35] backdrop-blur-xl"
+              >
+                <Sparkles size={14} />
+                Graph Mapped
+              </motion.span>
+              <motion.span
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ ...transitions.contentIn, delay: 0.08 }}
+                className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-xs font-medium text-[#D946EF] backdrop-blur-xl"
+              >
+                <FileText size={14} />
+                Summarized
+              </motion.span>
+            </div>
           )}
           {failed && (
             <span className="absolute left-3 top-3">
@@ -1151,9 +1215,8 @@ function KnowledgeCard({ video, onClick, onRetry }: { video: Video; onClick: () 
 
           {done && (
             <div className="mt-3 flex flex-wrap gap-1.5">
-              <DonePill label="Transcribed" tint="ember" delay={0.05} />
-              <DonePill label="Graph Mapped" tint="orchid" delay={0.16} />
-              <DonePill label="Summarized" tint="ember" delay={0.27} />
+              <DonePill icon={<Sparkles size={14} />} label="Graph Mapped" color="#FF6B35" delay={0.05} />
+              <DonePill icon={<FileText size={14} />} label="Summarized" color="#D946EF" delay={0.16} />
             </div>
           )}
 
