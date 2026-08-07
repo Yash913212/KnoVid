@@ -1,7 +1,6 @@
-import { useState, useEffect, useRef, useCallback, Fragment } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect, useRef, useCallback, Fragment, lazy, Suspense } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
-import { useAuth } from '../context/AuthContext'
 import {
   uploadVideo, submitUrl, getVideos, retryVideo,
   STATUS_LABELS, getStatusStep, isProcessing,
@@ -9,10 +8,10 @@ import {
 } from '../api/videos'
 import { fadeUpLift, scaleFade, tw, staggerContainer, staggerItem, transitions } from '../lib/motion'
 import { useToast } from '../components/Toast'
-import ThemeToggle from '../components/ThemeToggle'
-import { openCommandPalette } from '../components/CommandPalette'
 import { formatTime } from '../utils'
 import { getResume } from '../lib/resume'
+
+const FeatureShowcase = lazy(() => import('../components/FeatureShowcase'))
 
 const POLL_INTERVAL = 3000
 
@@ -69,14 +68,15 @@ function deriveFlow(activeMax: number, hasDone: boolean): FlowState[] {
 }
 
 export default function Dashboard() {
-  const navigate = useNavigate()
-  const { user, logout } = useAuth()
+    const navigate = useNavigate()
+  const location = useLocation()
   const { toast } = useToast()
   const [videos, setVideos] = useState<Video[]>([])
   const [loading, setLoading] = useState(true)
   const [url, setUrl] = useState('')
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
+  const [transmuting, setTransmuting] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [error, setError] = useState('')
   const [query, setQuery] = useState('')
@@ -171,6 +171,7 @@ export default function Dashboard() {
   const handleUrl = async () => {
     if (!url.trim()) return
     setError('')
+    setTransmuting(true)
     try {
       await submitUrl(url.trim(), outputLang)
       toast('URL added — transmuting started', 'success')
@@ -183,6 +184,8 @@ export default function Dashboard() {
     } catch (err: any) {
       setError(err?.response?.data?.error || 'Failed to submit URL')
       toast('Failed to submit URL', 'error')
+    } finally {
+      setTransmuting(false)
     }
   }
 
@@ -234,28 +237,34 @@ export default function Dashboard() {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
+  // Deep-link navigation from the shared AppShell command bar. When the shell
+  // routes us to /#portal or /#library, settle on that section and (for the
+  // portal) focus the URL input.
+  useEffect(() => {
+    const hash = location.hash
+    if (!hash) return
+    const id = hash.slice(1)
+    const el = document.getElementById(id)
+    if (!el) return
+    const raf = requestAnimationFrame(() => {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      if (id === 'portal') urlInputRef.current?.focus()
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [location.hash])
+
   const activeVideos = videos.filter((v) => isProcessing(v.status))
   const doneVideos = videos.filter((v) => v.status === 'done' || v.status === 'failed')
   const visibleVideos = doneVideos.filter((v) => v.originalName.toLowerCase().includes(query.trim().toLowerCase()))
   const isEmpty = !loading && videos.length === 0
+  const noSuccessful = !loading && !doneVideos.some((v) => v.status === 'done')
 
   const activeMax = activeVideos.reduce((m, v) => Math.max(m, getStatusStep(v.status)), -1)
   const flowStates = deriveFlow(activeMax, doneVideos.some((v) => v.status === 'done'))
 
   return (
-    <div className="app-atmosphere premium-atmosphere min-h-screen scroll-smooth">
-      <AmbientBackground />
-
-      <CommandBar
-        userName={user?.name ?? user?.email ?? ''}
-        onLogout={logout}
-        onGenerate={focusPortal}
-        onNavigate={scrollTo}
-        hasLibrary={videos.length > 0}
-      />
-
-      <main className="relative z-10">
-        {isEmpty ? (
+    <>
+      {isEmpty ? (
           <>
             <OnboardingHero onSummon={focusPortal} onHow={() => scrollTo('pipeline')} />
             <MagicUploadPortal
@@ -265,6 +274,7 @@ export default function Dashboard() {
               uploadProgress={uploadProgress}
               processing={portalProcessing}
               processingStatus={recentVideo?.status}
+              transmuting={transmuting}
               dragOver={dragOver}
               onDragEnter={handleDragEnter}
               onDragOver={handleDragOver}
@@ -280,6 +290,9 @@ export default function Dashboard() {
               onUploadInput={handleUpload}
               error={error}
             />
+            <Suspense fallback={null}>
+              <FeatureShowcase />
+            </Suspense>
             <div className="mx-auto max-w-4xl px-4 pb-24">
               <ValuePipeline flowStates={flowStates} heading="How KnoVid works" />
             </div>
@@ -327,6 +340,7 @@ export default function Dashboard() {
               uploadProgress={uploadProgress}
               processing={portalProcessing}
               processingStatus={recentVideo?.status}
+              transmuting={transmuting}
               dragOver={dragOver}
               onDragEnter={handleDragEnter}
               onDragOver={handleDragOver}
@@ -342,6 +356,12 @@ export default function Dashboard() {
               onUploadInput={handleUpload}
               error={error}
             />
+
+            {noSuccessful && (
+              <Suspense fallback={null}>
+                <FeatureShowcase />
+              </Suspense>
+            )}
 
             <div id="pipeline" className="mx-auto max-w-6xl px-4 pb-10">
               <ValuePipeline flowStates={flowStates} />
@@ -363,9 +383,11 @@ export default function Dashboard() {
                   <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-stone-400 dark:text-stone-500">Awakening AI…</span>
                 </div>
                 <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                  {activeVideos.map((v) => (
-                    <KnowledgeCard key={v._id} video={v} onClick={() => navigate(`/video/${v._id}`)} onRetry={handleRetry} />
-                  ))}
+                  <AnimatePresence mode="popLayout">
+                    {activeVideos.map((v) => (
+                      <KnowledgeCard key={v._id} video={v} onClick={() => navigate(`/video/${v._id}`)} onRetry={handleRetry} />
+                    ))}
+                  </AnimatePresence>
                 </div>
               </motion.section>
             )}
@@ -416,130 +438,17 @@ export default function Dashboard() {
                   animate="show"
                   variants={staggerContainer({ delay: 0.06 })}
                 >
-                  {visibleVideos.map((v) => (
-                    <KnowledgeCard key={v._id} video={v} onClick={() => navigate(`/video/${v._id}`)} onRetry={handleRetry} />
-                  ))}
+                  <AnimatePresence mode="popLayout">
+                    {visibleVideos.map((v) => (
+                      <KnowledgeCard key={v._id} video={v} onClick={() => navigate(`/video/${v._id}`)} onRetry={handleRetry} />
+                    ))}
+                  </AnimatePresence>
                 </motion.div>
               )}
             </section>
           </>
         )}
-      </main>
-    </div>
-  )
-}
-
-/* ─── Ambient background ─────────────────────────────────────────────── */
-
-function AmbientBackground() {
-  return (
-    <div aria-hidden className="pointer-events-none fixed inset-0 -z-10">
-      <div className="absolute inset-0 bg-[#f6f7fb] dark:bg-[#050506]" />
-      <div className="ambient-blob ambient-a -left-40 -top-40 h-[34rem] w-[34rem]" />
-      <div className="ambient-blob ambient-b right-[-15rem] top-[6%] h-[38rem] w-[38rem]" />
-      <div className="ambient-blob ambient-c bottom-[-16rem] left-[22%] h-[36rem] w-[36rem]" />
-      <div className="ambient-blob ambient-d bottom-[2%] right-[10%] h-[24rem] w-[24rem] opacity-60" />
-      <div className="ambient-grid absolute inset-0" />
-    </div>
-  )
-}
-
-/* ─── Command bar ────────────────────────────────────────────────────── */
-
-function CommandBar({
-  userName, onLogout, onGenerate, onNavigate, hasLibrary,
-}: {
-  userName: string
-  onLogout: () => void
-  onGenerate: () => void
-  onNavigate: (id: string) => void
-  hasLibrary: boolean
-}) {
-  const initial = (userName || 'K').charAt(0).toUpperCase()
-  const links = [
-    { label: 'Workspace', target: 'top', active: true },
-    { label: 'Graphs', target: hasLibrary ? 'library' : 'portal' },
-    { label: 'Transcripts', target: hasLibrary ? 'library' : 'portal' },
-  ]
-  return (
-    <motion.header
-      initial={{ y: -28, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      transition={transitions.page}
-      className="sticky top-4 z-40 mx-auto w-[min(100%-2rem,72rem)]"
-    >
-      <div className="flex items-center gap-2 rounded-2xl border border-white/70 bg-white/75 py-2 pl-3 pr-2 shadow-[0_16px_60px_rgb(15_23_42/0.18)] backdrop-blur-2xl dark:border-white/10 dark:bg-[#0a0a0e]/70 dark:shadow-[0_16px_60px_rgb(0_0_0/0.5)]">
-        <button type="button" onClick={onGenerate} className="group flex items-center gap-2.5" aria-label="KnoVid home">
-          <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-[#FF6B35] to-[#D946EF] text-white shadow-[0_0_24px_rgb(217 70 239/0.55)] transition-transform duration-200 group-hover:scale-105">
-            <IconLogo className="h-5 w-5" />
-          </span>
-          <span className="font-display hidden text-lg font-black tracking-tight text-stone-900 drop-shadow-[0_0_14px_rgb(217 70 239/0.5)] sm:block dark:text-white">
-            KnoVid
-          </span>
-        </button>
-
-        <nav className="hidden items-center gap-1 md:flex">
-          {links.map((l) => (
-            <button
-              key={l.label}
-              type="button"
-              onClick={() => onNavigate(l.target)}
-              className={`rounded-full px-3 py-1.5 text-sm transition-colors ${
-                l.active
-                  ? 'bg-[#FF6B35]/12 font-semibold text-[#C2410C] dark:bg-white/[0.08] dark:text-[#FF8A5C]'
-                  : 'text-stone-600 hover:bg-stone-900/5 hover:text-stone-900 dark:text-stone-400 dark:hover:bg-white/[0.06] dark:hover:text-white'
-              }`}
-            >
-              {l.label}
-            </button>
-          ))}
-        </nav>
-
-        <div className="ml-auto flex items-center gap-2">
-          <button
-            type="button"
-            onClick={openCommandPalette}
-            className="flex items-center gap-2 rounded-full border border-white/60 bg-white/60 px-3 py-1.5 text-sm text-stone-500 transition-colors hover:border-[#FF6B35]/70 hover:text-[#C2410C] dark:border-white/10 dark:bg-white/[0.05] dark:text-stone-400 dark:hover:text-[#FF8A5C]"
-            aria-label="Search library"
-          >
-            <IconSearch className="h-4 w-4" />
-            <span className="hidden sm:inline">Search</span>
-            <kbd className="rounded-md border border-stone-200 bg-white px-1.5 font-mono text-[10px] text-stone-400 dark:border-white/10 dark:bg-stone-900 dark:text-stone-500">⌘K</kbd>
-          </button>
-
-          <ThemeToggle />
-
-          <button
-            type="button"
-            onClick={onGenerate}
-            className="sheen-button inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#FF6B35] to-[#D946EF] px-3.5 py-2 text-sm font-semibold text-white shadow-[0_10px_30px_rgb(217 70 239/0.5)] transition-transform duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_16px_44px_rgb(217 70 239/0.65)] active:scale-[0.97]"
-          >
-            <IconSparkles className="h-4 w-4" />
-            Generate
-          </button>
-
-          <span
-            className="ml-1 hidden items-center gap-2 rounded-full pl-0.5 pr-3 lg:flex"
-            title={userName || 'Signed in'}
-          >
-            <span className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-[#FF6B35] to-[#D946EF] font-display text-sm font-black text-white shadow-[0_0_18px_rgb(217 70 239/0.5)]">
-              {initial}
-            </span>
-            <span className="max-w-[8rem] truncate text-sm text-stone-600 dark:text-stone-300">{userName}</span>
-          </span>
-
-          <button
-            type="button"
-            onClick={onLogout}
-            aria-label="Logout"
-            title="Logout"
-            className="grid h-9 w-9 place-items-center rounded-full border border-white/60 bg-white/60 text-stone-500 transition-colors hover:border-red-300 hover:text-red-500 dark:border-white/10 dark:bg-white/[0.05] dark:text-stone-400 dark:hover:text-red-400"
-          >
-            <IconLogout className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
-    </motion.header>
+    </>
   )
 }
 
@@ -706,6 +615,7 @@ interface PortalProps {
   uploadProgress: number
   processing: boolean
   processingStatus?: VideoStatus
+  transmuting: boolean
   dragOver: boolean
   onDragEnter: (e: React.DragEvent) => void
   onDragOver: (e: React.DragEvent) => void
@@ -725,11 +635,11 @@ interface PortalProps {
 function MagicUploadPortal(props: PortalProps) {
   const {
     fileInputRef, urlInputRef, uploading, uploadProgress, processing, processingStatus,
-    dragOver, onDragEnter, onDragOver, onDragLeave, onDrop, onPick,
+    transmuting, dragOver, onDragEnter, onDragOver, onDragLeave, onDrop, onPick,
     url, onUrlChange, onTransmute, outputLang, onLangChange, onCancel, onUploadInput, error,
   } = props
 
-  const busy = uploading || processing
+  const busy = uploading || processing || transmuting
 
   const handleClick = () => {
     if (busy) return
@@ -756,7 +666,7 @@ function MagicUploadPortal(props: PortalProps) {
       />
 
       <div className="relative grid place-items-center" style={{ width: 300, height: 300 }}>
-        <div className={`portal-ring ${dragOver ? 'portal-ring-fast' : ''}`} />
+        <div className={`portal-ring ${dragOver || busy ? 'portal-ring-fast' : ''} ${transmuting || uploading ? 'portal-ingest' : ''}`} />
         <motion.div
           role="button"
           tabIndex={0}
@@ -770,9 +680,9 @@ function MagicUploadPortal(props: PortalProps) {
           }}
           animate={{ scale: dragOver ? 1.1 : busy ? 1.04 : 1 }}
           transition={{ type: 'spring', stiffness: 220, damping: 18 }}
-          className={`relative grid aspect-square w-60 cursor-pointer place-items-center overflow-hidden rounded-full border border-white/70 bg-white/80 backdrop-blur-2xl sm:w-72 dark:border-white/10 dark:bg-[#0b0b10]/85 ${
-            dragOver ? 'portal-breathe-strong' : 'portal-breathe'
-          }`}
+          className={`relative grid aspect-square w-60 cursor-pointer place-items-center overflow-hidden rounded-full border border-white/10 bg-black/40 backdrop-blur-2xl shadow-[0_0_40px_10px_rgba(217,70,239,0.15)] animate-[pulse_4s_ease-in-out_infinite] transition-all duration-500 sm:w-72 hover:shadow-[0_0_60px_15px_rgba(255,107,53,0.3)] hover:scale-105 dark:border-white/10 dark:bg-[#0b0b10]/85 ${
+            dragOver ? 'portal-breathe-strong' : ''
+          } ${transmuting || uploading ? 'portal-ingest-disc' : ''}`}
         >
           <div className="pointer-events-none absolute inset-0 rounded-full opacity-70 dark:bg-[radial-gradient(circle_at_50%_50%,rgb(255 107 53/0.16),transparent_65%)]" />
 
@@ -781,6 +691,21 @@ function MagicUploadPortal(props: PortalProps) {
               <ProgressRing percent={uploadProgress} />
               <p className="font-display text-2xl font-black text-stone-900 dark:text-white">{uploadProgress}%</p>
               <p className="text-[11px] text-stone-500 dark:text-stone-400">Transmuting into knowledge…</p>
+            </div>
+          ) : transmuting ? (
+            <div className="flex flex-col items-center gap-2 px-6 text-center">
+              <div className="relative grid h-16 w-16 place-items-center">
+                <div className="spin-ring absolute inset-0 rounded-full" />
+                <motion.span
+                  animate={{ scale: [1, 1.14, 1], opacity: [0.7, 1, 0.7] }}
+                  transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }}
+                  className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-[#FF6B35] to-[#D946EF] text-white shadow-[0_0_24px_rgb(217 70 239/0.8)]"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>
+                </motion.span>
+              </div>
+              <p className="font-display text-xl font-black text-stone-900 dark:text-white">Ingesting…</p>
+              <p className="text-[11px] text-stone-500 dark:text-stone-400">Opening the link, waking Whisper…</p>
             </div>
           ) : processing && processingStatus ? (
             <div className="flex flex-col items-center gap-2 px-6 text-center">
@@ -823,32 +748,49 @@ function MagicUploadPortal(props: PortalProps) {
         <AnimatePresence>{dragOver && !busy && <PortalParticles />}</AnimatePresence>
       </div>
 
-      <div className="mt-8 w-full max-w-xl">
-        <div className="flex gap-2">
-          <div className={`flex-1 ${tw.glowWrap} input-glow-ember`}>
-            <input
-              ref={urlInputRef}
-              type="url"
-              placeholder="Paste any video link — YouTube, Vimeo, direct MP4…"
-              className="w-full rounded-xl border border-white/70 bg-white/75 px-3.5 py-2.5 text-sm text-stone-800 placeholder:text-stone-400 backdrop-blur-xl focus:border-[#FF6B35] focus:outline-none focus:ring-4 focus:ring-[#FF6B35]/15 dark:border-white/10 dark:bg-white/[0.05] dark:text-stone-100 dark:placeholder:text-stone-500"
-              value={url}
-              onChange={(e) => onUrlChange(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && onTransmute()}
-            />
-          </div>
-          <button
-            type="button"
-            onClick={onTransmute}
-            disabled={!url.trim() || busy}
-            className="sheen-button rounded-xl bg-gradient-to-r from-[#FF6B35] to-[#D946EF] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_30px_rgb(217 70 239/0.45)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_16px_44px_rgb(217 70 239/0.6)] active:scale-[0.97] disabled:opacity-40 disabled:shadow-none disabled:hover:translate-y-0"
+      <AnimatePresence mode="wait">
+        {!busy && (
+          <motion.div
+            key="url-input"
+            className="mt-8 w-full max-w-xl"
+            initial={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0, marginTop: 0, overflow: 'hidden' }}
+            transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
           >
-            Transmute
-          </button>
+            <div className="flex gap-2">
+              <div className={`flex-1 ${tw.glowWrap} input-glow-ember`}>
+                <input
+                  ref={urlInputRef}
+                  type="url"
+                  placeholder="Paste any video link — YouTube, Vimeo, direct MP4…"
+                  className="w-full rounded-xl border border-white/10 bg-black/40 px-3.5 py-2.5 text-sm text-stone-100 placeholder:text-stone-400 backdrop-blur-xl focus:border-[#FF6B35] focus:outline-none focus:shadow-[0_2px_10px_-3px_rgba(255,107,53,0.5)] focus:ring-0 dark:border-white/10 dark:bg-white/[0.05] dark:text-stone-100 dark:placeholder:text-stone-500"
+                  value={url}
+                  onChange={(e) => onUrlChange(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && onTransmute()}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={onTransmute}
+                disabled={!url.trim() || busy}
+                className="sheen-button rounded-xl bg-gradient-to-r from-[#FF6B35] via-[#FF8A5C] to-[#D946EF] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_30px_rgb(217 70 239/0.45)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_16px_44px_rgb(217 70 239/0.6)] active:scale-[0.97] disabled:opacity-40 disabled:shadow-none disabled:hover:translate-y-0"
+              >
+                Transmute
+              </button>
+            </div>
+            <p className="mt-2 text-center text-xs text-stone-500 dark:text-stone-500">
+              Supports 1,300+ sites via yt-dlp · direct files up to 2GB (MP4, MOV, AVI, WebM)
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      {busy && (
+        <div className="mt-8 w-full max-w-xl">
+          <p className="text-center text-xs text-stone-500 dark:text-stone-500">
+            Supports 1,300+ sites via yt-dlp · direct files up to 2GB (MP4, MOV, AVI, WebM)
+          </p>
         </div>
-        <p className="mt-2 text-center text-xs text-stone-500 dark:text-stone-500">
-          Supports 1,300+ sites via yt-dlp · direct files up to 2GB (MP4, MOV, AVI, WebM)
-        </p>
-      </div>
+      )}
 
       <div className="mt-6 w-full max-w-xl">
         <p className="mb-2 text-center font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-stone-500 dark:text-stone-400">
@@ -959,7 +901,7 @@ function ValuePipeline({ flowStates, heading }: { flowStates: FlowState[]; headi
                 state === 'active'
                   ? 'border-[#FF6B35]/60 bg-white/70 shadow-[0_0_30px_rgb(255 107 53/0.18)] dark:border-[#D946EF]/40 dark:bg-white/[0.05]'
                   : state === 'done'
-                    ? 'border-emerald-300/50 bg-white/70 dark:border-emerald-400/30 dark:bg-white/[0.04]'
+                    ? 'border-[#FF6B35]/40 bg-white/70 dark:border-[#D946EF]/40 dark:bg-white/[0.04]'
                     : 'border-white/70 bg-white/60 dark:border-white/10 dark:bg-white/[0.03]'
               } hover:shadow-[0_18px_50px_rgb(15_23_42/0.18)] dark:hover:shadow-[0_18px_50px_rgb(0_0_0/0.4)]`}
             >
@@ -977,7 +919,7 @@ function ValuePipeline({ flowStates, heading }: { flowStates: FlowState[]; headi
                       animate={{ scale: 1, rotate: 0, opacity: 1 }}
                       exit={{ scale: 0.4, opacity: 0 }}
                       transition={transitions.micro}
-                      className="ml-auto grid h-6 w-6 place-items-center rounded-full bg-emerald-400/90 text-emerald-950 shadow-[0_0_14px_rgb(52_211_153/0.6)]"
+                      className="ml-auto grid h-6 w-6 place-items-center rounded-full bg-[#FF6B35] text-white shadow-[0_0_14px_rgb(255_107_53/0.6)]"
                     >
                       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
                         <path d="M20 6 9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
@@ -1003,7 +945,7 @@ function ValuePipeline({ flowStates, heading }: { flowStates: FlowState[]; headi
                 <div
                   className={`h-full rounded-full transition-[width] duration-500 ease-out ${
                     state === 'done'
-                      ? 'w-full bg-gradient-to-r from-emerald-400 to-[#FF6B35]'
+                      ? 'w-full bg-gradient-to-r from-[#D946EF] to-[#FF6B35]'
                       : state === 'active'
                         ? `bar-sweep w-2/3 bg-gradient-to-r ${step.color}`
                         : 'w-1/4 bg-stone-300 dark:bg-white/15'
@@ -1033,17 +975,45 @@ function thumbGrad(id: string): string {
   return THUMB_GRADS[h % THUMB_GRADS.length]
 }
 
-function MagicPill({ tint, children }: { tint: 'emerald' | 'ember' | 'orchid'; children: React.ReactNode }) {
+function MagicPill({ tint, children }: { tint: 'ember' | 'orchid'; children: React.ReactNode }) {
   const cls = {
-    emerald: 'border-emerald-300/50 bg-emerald-400/10 text-emerald-700 dark:border-emerald-400/30 dark:text-emerald-300',
     ember: 'border-[#FF6B35]/50 bg-[#FF6B35]/10 text-[#C2410C] dark:border-[#FF6B35]/30 dark:text-[#FF8A5C]',
     orchid: 'border-[#D946EF]/50 bg-[#D946EF]/10 text-[#A21CAF] dark:border-[#D946EF]/30 dark:text-[#E879F9]',
   }[tint]
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${cls}`}>
+    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold backdrop-blur-md ${cls}`}>
       {children}
     </span>
   )
+}
+
+// Glassy "reveal" pill for finished instructions — the star spark is always Tangerine.
+function DonePill({ label, tint, delay }: { label: string; tint: 'ember' | 'orchid'; delay?: number }) {
+  const cls = {
+    ember: 'border-[#FF6B35]/40 bg-[#FF6B35]/[0.06] text-[#C2410C] dark:border-[#FF6B35]/35 dark:bg-[#FF6B35]/[0.08] dark:text-[#FF8A5C]',
+    orchid: 'border-[#D946EF]/40 bg-[#D946EF]/[0.06] text-[#A21CAF] dark:border-[#D946EF]/35 dark:bg-[#D946EF]/[0.08] dark:text-[#E879F9]',
+  }[tint]
+  return (
+    <motion.span
+      initial={{ opacity: 0, scale: 0.5, y: 8 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      transition={{ type: 'spring', stiffness: 420, damping: 22, delay }}
+      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold backdrop-blur-md ${cls}`}
+    >
+      <span className="text-[#FF6B35] dark:text-[#FF8A5C]">✦</span>
+      {label}
+    </motion.span>
+  )
+}
+
+// Progress fill % per processing step, so the bar visibly "fills up".
+const PROGRESS_BY_STATUS: Record<VideoStatus, number> = {
+  queued: 10,
+  downloading: 30,
+  processing: 62,
+  analyzing: 88,
+  done: 100,
+  failed: 0,
 }
 
 function KnowledgeCard({ video, onClick, onRetry }: { video: Video; onClick: () => void; onRetry: (id: string) => void }) {
@@ -1051,116 +1021,167 @@ function KnowledgeCard({ video, onClick, onRetry }: { video: Video; onClick: () 
   const processing = isProcessing(video.status)
   const done = video.status === 'done'
   const resume = done ? getResume(video._id) : null
+
+  // Detect the processing → done transition so the card can "pop" (spring).
+  const [popCount, setPopCount] = useState(0)
+  const prevStatus = useRef(video.status)
+  useEffect(() => {
+    if (prevStatus.current !== 'done' && video.status === 'done') {
+      setPopCount((c) => c + 1)
+    }
+    prevStatus.current = video.status
+  }, [video.status])
+
+  const barWidth = PROGRESS_BY_STATUS[video.status]
+
   return (
     <motion.div
-      onClick={onClick}
-      role="button"
-      tabIndex={0}
-      aria-label={`Open ${video.originalName}`}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          onClick()
-        }
-      }}
       variants={staggerItem(scaleFade)}
+      layout
       style={{ willChange: 'transform' }}
-      whileHover={{ y: -6, scale: 1.01 }}
-      transition={{ ...transitions.content, duration: 0.3 }}
-      className={`group relative cursor-pointer overflow-hidden rounded-3xl border bg-white/75 backdrop-blur-xl transition-[border-color,box-shadow,background-color] duration-300 hover:bg-white/95 dark:bg-white/[0.04] dark:hover:bg-white/[0.06] ${
-        failed
-          ? 'border-red-400/60 shadow-[0_0_30px_rgb(244_63_94/0.25)] dark:border-red-500/40 dark:shadow-[0_0_40px_rgb(244_63_94/0.2)]'
-          : 'border-white/70 shadow-[0_18px_60px_rgb(15_23_42/0.14)] dark:border-white/10 dark:shadow-[0_24px_80px_rgb(0_0_0/0.5)]'
-      } hover:shadow-[0_28px_80px_rgb(15_23_42/0.22)] dark:hover:shadow-[0_36px_100px_rgb(0_0_0/0.6)]`}
+      className="h-full"
     >
-      <div className="pointer-events-none absolute -inset-px z-10 rounded-3xl opacity-0 transition-opacity duration-300 group-hover:opacity-100 dark:bg-[radial-gradient(120%_80%_at_50%_0%,rgb(217 70 239/0.18),transparent_60%)]" />
+      <motion.div
+        key={popCount}
+        onClick={onClick}
+        role="button"
+        tabIndex={0}
+        aria-label={`Open ${video.originalName}`}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            onClick()
+          }
+        }}
+        initial={popCount > 0 ? { scale: 0.92 } : false}
+        animate={{ scale: 1 }}
+        transition={{ type: 'spring', stiffness: 380, damping: 15 }}
+        whileHover={failed ? { scale: 1.01 } : { y: -6, scale: 1.01 }}
+        className={`group relative cursor-pointer overflow-hidden rounded-3xl border bg-white/75 backdrop-blur-xl transition-[border-color,box-shadow,background-color] duration-300 hover:bg-white/95 dark:bg-black/40 dark:backdrop-blur-xl dark:border-white/10 dark:shadow-2xl dark:hover:bg-black/50 ${
+          failed
+            ? 'border-red-500/20 shadow-[0_0_25px_-6px_rgba(239,68,68,0.2)] dark:border-red-500/25'
+            : processing
+              ? 'border-[#D946EF]/30 shadow-[0_0_30px_-5px_rgba(217,70,239,0.4)] animate-pulse dark:border-[#D946EF]/30 dark:shadow-[0_0_38px_-6px_rgba(217,70,239,0.5)]'
+              : 'border-white/10 shadow-[0_18px_60px_rgba(15,23,42,0.14)]'
+        } hover:shadow-[0_28px_80px_rgb(15_23_42/0.22)] dark:hover:shadow-[0_36px_100px_rgb(0_0_0/0.6)]`}
+      >
+        <div className="pointer-events-none absolute -inset-px z-10 rounded-3xl opacity-0 transition-opacity duration-300 group-hover:opacity-100 dark:bg-[radial-gradient(120%_80%_at_50%_0%,rgb(217 70 239/0.18),transparent_60%)]" />
 
-      <div className="relative aspect-video overflow-hidden">
-        <div className={`absolute inset-0 bg-gradient-to-br transition-transform duration-500 group-hover:scale-[1.04] ${thumbGrad(video._id)}`}>
-          <div className="absolute inset-0 grid place-items-center opacity-70">
-            <ThumbWave />
-          </div>
-        </div>
-        <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/50 to-transparent" />
-
-        {done && (
-          <span className="absolute left-3 top-3">
-            <MagicPill tint="emerald">✦ Transcribed</MagicPill>
-          </span>
-        )}
-        {failed && (
-          <span className="absolute left-3 top-3">
-            <MagicPill tint="orchid">✕ Invocation failed</MagicPill>
-          </span>
-        )}
-
-        <div className="absolute inset-0 grid place-items-center bg-black/0 transition-colors duration-300 group-hover:bg-black/40">
-          <span className="grid h-12 w-12 scale-75 place-items-center rounded-full bg-white/20 text-white opacity-0 backdrop-blur-sm transition-all duration-300 group-hover:scale-100 group-hover:opacity-100">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86a1 1 0 0 0-1.5.86z" /></svg>
-          </span>
-        </div>
-
-        {processing && (
-          <div className="absolute inset-0 grid place-items-center bg-[#050507]/75 backdrop-blur-[2px]">
-            <div className="flex flex-col items-center gap-2">
-              <div className="relative grid h-14 w-14 place-items-center">
-                <div className="spin-ring absolute inset-0 rounded-full" />
-                <motion.span
-                  animate={{ scale: [1, 1.12, 1], opacity: [0.75, 1, 0.75] }}
-                  transition={{ duration: 1.3, repeat: Infinity, ease: 'easeInOut' }}
-                  className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-[#FF6B35] to-[#D946EF] text-white"
-                >
-                  <IconSparkles className="h-3.5 w-3.5" />
-                </motion.span>
-              </div>
-              <p className="text-xs font-semibold text-white">Awakening AI…</p>
-              <p className="text-[10px] text-white/60">{STATUS_LABELS[video.status]}</p>
+        <div className="relative aspect-video overflow-hidden">
+          <div className={`absolute inset-0 bg-gradient-to-br transition-transform duration-500 group-hover:scale-[1.04] ${thumbGrad(video._id)}`}>
+            <div className="absolute inset-0 grid place-items-center opacity-70">
+              <ThumbWave />
             </div>
           </div>
-        )}
+          {/* Shimmering glass for queued/downloading */}
+          {(video.status === 'queued' || video.status === 'downloading') && (
+            <>
+              <div className="absolute inset-0 skeleton-shimmer opacity-40" />
+              <div className="absolute inset-0 bg-gradient-to-t from-white/10 via-white/[0.04] to-white/10 backdrop-blur-[2px]" />
+            </>
+          )}
+          {/* Filling gradient progress bar for processing */}
+          {processing && (
+            <div className="absolute inset-x-0 bottom-0 h-1 z-20">
+              <motion.div
+                className="bar-sweep h-full bg-gradient-to-r from-[#FF6B35] via-[#FF9A3D] to-[#D946EF]"
+                initial={{ width: '8%' }}
+                animate={{ width: `${barWidth}%` }}
+                transition={{ duration: 0.8, ease: 'easeOut' }}
+              />
+            </div>
+          )}
+          <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/50 to-transparent" />
 
-        {resume != null && resume > 15 && (
-          <span className="absolute bottom-3 left-3 inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-black/40 px-2 py-0.5 font-mono text-[10px] font-medium text-white backdrop-blur-md">
-            <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86a1 1 0 0 0-1.5.86z" /></svg>
-            Resume {formatTime(resume)}
-          </span>
-        )}
-      </div>
-
-      <div className="relative z-10 p-4">
-        <p className="font-display truncate text-sm font-bold text-stone-900 transition-colors group-hover:text-[#C2410C] dark:text-stone-100 dark:group-hover:text-[#FF8A5C]">{video.originalName}</p>
-        <p className="mt-0.5 text-xs text-stone-500 dark:text-stone-400">
-          {video.source === 'url' ? 'URL' : 'Upload'} &middot; {new Date(video.createdAt).toLocaleDateString()}
-          {video.duration > 0 && ` · ${Math.round(video.duration)}s`}
-        </p>
-
-        {done && (
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            <MagicPill tint="ember">✦ Diarized</MagicPill>
-            <MagicPill tint="orchid">✦ Graph Mapped</MagicPill>
-          </div>
-        )}
-
-        {failed && (
-          <div className="mt-3">
-            {video.errorMessage && <p className="mb-2 truncate text-xs text-red-500 dark:text-red-400">{video.errorMessage}</p>}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                onRetry(video._id)
-              }}
-              className="sheen-button inline-flex items-center gap-1.5 rounded-full border border-red-300/60 bg-red-400/10 px-3 py-1.5 text-xs font-semibold text-red-600 transition-colors hover:bg-red-400/20 dark:border-red-400/40 dark:text-red-300"
+          {done && (
+            <motion.span
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={transitions.contentIn}
+              className="absolute left-3 top-3"
             >
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 12a9 9 0 1 0 2.6-6.4" />
-                <path d="M3 4v5h5" />
-              </svg>
-              Retry Invocation
-            </button>
+              <MagicPill tint="ember">✦ Transcribed</MagicPill>
+            </motion.span>
+          )}
+          {failed && (
+            <span className="absolute left-3 top-3">
+              <MagicPill tint="orchid">✕ Invocation failed</MagicPill>
+            </span>
+          )}
+
+          <div className="absolute inset-0 grid place-items-center bg-black/0 transition-colors duration-300 group-hover:bg-black/40">
+            <span className="grid h-12 w-12 scale-75 place-items-center rounded-full bg-white/20 text-white opacity-0 backdrop-blur-sm transition-all duration-300 group-hover:scale-100 group-hover:opacity-100">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86a1 1 0 0 0-1.5.86z" /></svg>
+            </span>
           </div>
-        )}
-      </div>
+
+          {processing && (
+            <div className="absolute inset-0 grid place-items-center bg-[#050507]/75 backdrop-blur-[2px]">
+              <div className="flex flex-col items-center gap-2">
+                <div className="relative grid h-14 w-14 place-items-center">
+                  <div className="spin-ring absolute inset-0 rounded-full" />
+                  <motion.span
+                    animate={{ scale: [1, 1.12, 1], opacity: [0.75, 1, 0.75] }}
+                    transition={{ duration: 1.3, repeat: Infinity, ease: 'easeInOut' }}
+                    className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-[#FF6B35] to-[#D946EF] text-white shadow-[0_0_20px_rgb(217 70 239/0.7)]"
+                  >
+                    <IconSparkles className="h-3.5 w-3.5" />
+                  </motion.span>
+                </div>
+                <p className="text-xs font-semibold text-white">Awakening AI…</p>
+                <p className="text-[10px] text-white/60">{STATUS_LABELS[video.status]}</p>
+              </div>
+            </div>
+          )}
+
+          {resume != null && resume > 15 && (
+            <span className="absolute bottom-3 left-3 inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-black/40 px-2 py-0.5 font-mono text-[10px] font-medium text-white backdrop-blur-md">
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86a1 1 0 0 0-1.5.86z" /></svg>
+              Resume {formatTime(resume)}
+            </span>
+          )}
+        </div>
+
+        <div className="relative z-10 p-4">
+          <p className="font-display truncate text-sm font-bold text-stone-900 transition-colors group-hover:text-[#C2410C] dark:text-stone-100 dark:group-hover:text-[#FF8A5C]">{video.originalName}</p>
+          <p className="mt-0.5 text-xs text-stone-500 dark:text-stone-400">
+            {video.source === 'url' ? 'URL' : 'Upload'} &middot; {new Date(video.createdAt).toLocaleDateString()}
+            {video.duration > 0 && ` · ${Math.round(video.duration)}s`}
+          </p>
+
+          {done && (
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              <DonePill label="Transcribed" tint="ember" delay={0.05} />
+              <DonePill label="Graph Mapped" tint="orchid" delay={0.16} />
+              <DonePill label="Summarized" tint="ember" delay={0.27} />
+            </div>
+          )}
+
+          {failed && (
+            <div className="mt-3">
+              {video.errorMessage && (
+                <p className="mb-2 line-clamp-1 text-xs leading-relaxed text-red-400/90 dark:text-red-300/80">
+                  {video.errorMessage.split('\n')[0]}
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onRetry(video._id)
+                }}
+                className="inline-flex items-center gap-1.5 rounded-full border border-red-400/30 px-3 py-1 text-[11px] font-semibold text-red-300 transition-all duration-200 hover:border-red-400/60 hover:bg-red-400/10 hover:text-red-200 dark:border-red-400/25 dark:text-red-300/90"
+              >
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 12a9 9 0 1 0 2.6-6.4" />
+                  <path d="M3 4v5h5" />
+                </svg>
+                Retry Invocation
+              </button>
+            </div>
+          )}
+        </div>
+      </motion.div>
     </motion.div>
   )
 }
@@ -1192,13 +1213,13 @@ function AnimatedError({ message }: { message: string }) {
   if (!message) return null
   return (
     <motion.div
-      className="mt-4 w-full max-w-xl rounded-xl border border-red-300/40 bg-red-500/10 p-3"
+      className="mt-4 w-full max-w-xl rounded-xl border border-red-500/30 bg-red-500/10 p-3 shadow-[0_0_15px_-5px_rgba(239,68,68,0.3)]"
       initial={{ opacity: 0, y: -4 }}
       animate={{ opacity: 1, y: 0 }}
       transition={transitions.contentIn}
       role="alert"
     >
-      <p className="text-sm text-red-600 dark:text-red-300">{message}</p>
+      <p className="text-sm text-red-200 dark:text-red-200">{message}</p>
     </motion.div>
   )
 }
@@ -1257,29 +1278,10 @@ function IconSearch({ className }: { className?: string }) {
   )
 }
 
-function IconLogout({ className }: { className?: string }) {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-      <path d="m16 17 5-5-5-5" />
-      <path d="M21 12H9" />
-    </svg>
-  )
-}
-
 function IconArrowDown({ className }: { className?: string }) {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
       <path d="M12 5v14m0 0 6-6m-6 6-6-6" />
-    </svg>
-  )
-}
-
-function IconLogo({ className }: { className?: string }) {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <circle cx="12" cy="12" r="3" />
-      <path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8" />
     </svg>
   )
 }

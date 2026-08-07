@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useCallback, useEffect, lazy, Suspense, Fragment } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
-import { useAuth } from '../context/AuthContext'
+import { Maximize2, Minimize2 } from 'lucide-react'
 import { useFetch } from '../hooks/useFetch'
 import { getVideo, retryVideo, isProcessing, type Video } from '../api/videos'
 import { getTranscript, type Transcript, type Segment } from '../api/transcripts'
@@ -17,7 +17,6 @@ import { formatTime } from '../utils'
 import { getResume, setResume, clearResume } from '../lib/resume'
 import { contentStream, staggerContainer, staggerItem, materialize, chatBubble, transitions, tw, usePrefersReducedMotion } from '../lib/motion'
 import { useToast } from '../components/Toast'
-import ThemeToggle from '../components/ThemeToggle'
 import VideoPlayer, { type VideoPlayerHandle } from '../components/VideoPlayer'
 const TopicTree = lazy(() => import('../components/TopicTree'))
 const KnowledgeGraph = lazy(() => import('../components/KnowledgeGraph'))
@@ -37,7 +36,10 @@ const LANGUAGES = [
 ]
 
 // Warm / orchid speaker ramp — distinct hues, no blue family.
+// Speaker 1 → Tangerine, Speaker 2 → Orchid, then a warm fallback ramp.
 const SPEAKER_COLORS: { tag: string; accent: string }[] = [
+  { tag: 'bg-[#FF6B35]/15 text-[#C2410C] dark:bg-[#FF6B35]/20 dark:text-[#FF8A5C]', accent: '#FF6B35' },
+  { tag: 'bg-[#D946EF]/15 text-[#A21CAF] dark:bg-[#D946EF]/20 dark:text-[#E879F9]', accent: '#D946EF' },
   { tag: 'bg-amber-100 text-amber-700', accent: '#C98F3D' },
   { tag: 'bg-orange-100 text-orange-700', accent: '#FB923C' },
   { tag: 'bg-pink-100 text-pink-700', accent: '#EC4899' },
@@ -140,7 +142,6 @@ export default function VideoDetail() {
   const manualScrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const navigate = useNavigate()
-  const { user, logout } = useAuth()
   const { toast } = useToast()
 
   const { data: video, loading: loadingVideo } = useFetch<Video | null>(
@@ -341,37 +342,21 @@ export default function VideoDetail() {
   if (!video) return null
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] dark:bg-[#0A0A0A]">
-      {/* ── Command header ───────────────────────────────────────── */}
-      <header className="sticky top-0 z-20 border-b border-black/10 bg-white/80 backdrop-blur-xl dark:border-white/10 dark:bg-[#0A0A0A]/80">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <button
-              onClick={() => navigate('/')}
-              aria-label="Back to dashboard"
-              className="grid h-9 w-9 place-items-center rounded-full border border-black/10 bg-white/75 text-stone-500 transition-all duration-200 hover:-translate-x-0.5 hover:border-[#FF6B35]/60 hover:text-[#EA580C] dark:border-white/10 dark:bg-stone-800/80 dark:text-stone-300 dark:hover:border-[#D946EF]/60 dark:hover:text-[#FF8A5C]"
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="M15 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" /></svg>
-            </button>
-            <div className="min-w-0">
-              <p className="font-display text-[11px] font-semibold uppercase tracking-[0.24em] text-[#EA580C] dark:text-[#FF8A5C]">KnoVid analysis</p>
-              <h1 className="font-display truncate text-lg font-black tracking-tight text-stone-900 dark:text-white">{video.originalName}</h1>
-            </div>
-          </div>
-          <div className="flex shrink-0 items-center gap-3">
-            <span className="hidden text-sm text-stone-600 sm:inline dark:text-stone-300">{user?.name}</span>
-            <ThemeToggle />
-            <button
-              onClick={logout}
-              className="rounded-full border border-red-200 bg-white/70 px-3 py-1.5 text-sm text-red-600 transition-colors hover:bg-red-50 dark:border-red-400/30 dark:bg-stone-800/70 dark:text-red-400 dark:hover:bg-red-500/10"
-            >
-              Logout
-            </button>
-          </div>
-        </div>
-      </header>
-
+    <div className="min-h-screen overflow-x-hidden bg-[#FAFAFA] dark:bg-[#0A0A0A]">
       <main className="mx-auto max-w-5xl px-4 py-8">
+        {/* ── Back → workspace breadcrumb ───────────────────────── */}
+        <motion.button
+          onClick={() => navigate('/')}
+          aria-label="Back to workspace"
+          className="mb-4 inline-flex items-center gap-2 rounded-full border border-black/10 bg-white/70 px-3 py-1.5 text-sm text-stone-600 transition-colors hover:border-[#FF6B35]/60 hover:text-[#EA580C] dark:border-white/10 dark:bg-white/[0.04] dark:text-stone-300 dark:hover:border-[#D946EF]/60 dark:hover:text-[#FF8A5C]"
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={transitions.content}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="M15 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          Back to workspace
+        </motion.button>
+
         {/* ── Player with orchid glow + pill badges ─────────────── */}
         <motion.div
           className="relative overflow-hidden rounded-3xl border border-black/10 bg-white/70 p-2 shadow-[0_0_60px_rgb(217_70_239/0.14),0_0_130px_rgb(255_107_53/0.08)] backdrop-blur-xl dark:border-white/10 dark:bg-stone-900/70 dark:shadow-[0_0_70px_rgb(217_70_239/0.20),0_0_150px_rgb(255_107_53/0.12)]"
@@ -515,7 +500,7 @@ export default function VideoDetail() {
                       </button>
 
                       <button type="button" onClick={exportSubtitles.bind(null, 'vtt')} title="Export .VTT subtitles"
-                        className="rounded-xl border border-stone-200 bg-white/80 px-2.5 py-1.5 text-xs font-medium text-stone-600 transition-colors hover:border-emerald-300 hover:text-emerald-700 dark:border-white/10 dark:bg-stone-800/70 dark:text-stone-300 dark:hover:text-emerald-300">
+                        className="rounded-xl border border-stone-200 bg-white/80 px-2.5 py-1.5 text-xs font-medium text-stone-600 transition-colors hover:border-[#FF6B35]/60 hover:text-[#EA580C] dark:border-white/10 dark:bg-stone-800/70 dark:text-stone-300 dark:hover:border-[#D946EF]/50 dark:hover:text-[#E879F9]">
                         .VTT
                       </button>
                       <button type="button" onClick={exportSubtitles.bind(null, 'srt')} title="Export .SRT subtitles"
@@ -584,68 +569,81 @@ export default function VideoDetail() {
                       style={{ maxHeight: 480 }}
                       onWheel={pauseAutoScroll}
                       onTouchStart={pauseAutoScroll}
-                      className={`rounded-2xl border divide-y overflow-y-auto ${tw.surface} dark:divide-white/10`}
+                      className={`rounded-2xl border p-2 space-y-2 overflow-y-auto ${tw.surface}`}
                     >
                       {(() => {
                         let flatIdx = 0
                         return groups.map((group, gi) => {
                           const accent = getSpeakerColor(group.speaker).accent
                           return (
-                            <div key={gi} className="relative">
+                            <div
+                              key={gi}
+                              className="relative overflow-hidden rounded-xl border border-white/70 bg-white/60 dark:border-white/10 dark:bg-stone-900/40"
+                            >
                               <motion.span
-                                className="absolute bottom-0 left-0 top-0 w-0.5 rounded-r-full"
-                                style={{ background: accent, transformOrigin: 'top' }}
+                                className="absolute bottom-0 left-0 top-0 w-1 rounded-r-full shadow-[0_0_12px_var(--seg-accent)]"
+                                style={{ background: accent, transformOrigin: 'top', ['--seg-accent' as string]: accent }}
                                 initial={{ scaleY: 0 }}
                                 animate={{ scaleY: 1 }}
                                 transition={{ ...transitions.content, delay: gi * 0.05 }}
                               />
-                              <div className="flex items-center gap-2 border-b px-4 py-2 bg-stone-50/75 dark:border-white/10 dark:bg-stone-800/60">
+                              <div className="flex items-center gap-2 border-b border-stone-200/70 px-4 py-2 bg-white/60 dark:border-white/10 dark:bg-stone-900/50">
                                 <motion.span
-                                  className={`inline-flex items-center gap-1 rounded ${getSpeakerColor(group.speaker).tag}`}
+                                  className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold shadow-sm ${getSpeakerColor(group.speaker).tag}`}
                                   initial={{ opacity: 0, x: -4 }}
                                   animate={{ opacity: 1, x: 0 }}
                                   transition={transitions.contentIn}
                                 >
                                   <span className="h-2 w-0.5 rounded-full" style={{ background: accent }} />
-                                  <span className="px-1 py-0.5 text-xs font-medium">{group.speaker}</span>
+                                  {group.speaker}
                                 </motion.span>
                                 <span className="text-xs text-gray-400 dark:text-stone-500">{group.segments.length} segs</span>
                               </div>
-                              {group.segments.map((seg) => {
-                                const idx = flatIdx++
-                                const active = idx === activeSegmentIdx
-                                return (
-                                  <div
-                                    key={idx}
-                                    ref={(el) => {
-                                      if (el) segmentEls.current.set(idx, el)
-                                      else segmentEls.current.delete(idx)
-                                    }}
-                                    data-active={active}
-                                    role="button"
-                                    tabIndex={0}
-                                    aria-label={`Jump to ${formatTime(seg.start)}`}
-                                    onClick={() => handleSeek(seg.start)}
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter' || e.key === ' ') {
-                                        e.preventDefault()
-                                        handleSeek(seg.start)
-                                      }
-                                    }}
-                                    className={`seg-row group flex cursor-pointer gap-4 px-4 py-2.5 transition-colors duration-200 ease-out ${active ? 'active transcript-active' : 'hover:bg-[#FF6B35]/5 dark:hover:bg-stone-800/60'}`}
-                                    style={{ ['--seg-accent' as string]: accent } as React.CSSProperties}
-                                  >
-                                    <span className="seg-bar" />
-                                    <span style={{ minWidth: 48 }} className={`mt-0.5 whitespace-nowrap font-mono text-xs ${active ? 'font-semibold text-[#EA580C] dark:text-[#FF8A5C]' : 'text-gray-400 dark:text-stone-500'} group-hover:text-[#EA580C] dark:group-hover:text-[#FF8A5C]`}>
-                                      {formatTime(seg.start)}
-                                    </span>
-                                    <p className={`flex-1 text-sm ${active ? 'text-[#9A3412] dark:text-[#FFE4D6]' : 'text-gray-800 dark:text-stone-200'}`}>{seg.text}</p>
-                                    <span className="my-auto mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full text-stone-400 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
-                                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><path d="M10 8.5v7l6-3.5z" fill="currentColor" stroke="none" /></svg>
-                                    </span>
-                                  </div>
-                                )
-                              })}
+                              <div className="p-1.5">
+                                {group.segments.map((seg) => {
+                                  const idx = flatIdx++
+                                  const active = idx === activeSegmentIdx
+                                  return (
+                                    <div
+                                      key={idx}
+                                      ref={(el) => {
+                                        if (el) segmentEls.current.set(idx, el)
+                                        else segmentEls.current.delete(idx)
+                                      }}
+                                      data-active={active}
+                                      role="button"
+                                      tabIndex={0}
+                                      aria-label={`Play from ${formatTime(seg.start)}`}
+                                      onClick={() => handleSeek(seg.start)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter' || e.key === ' ') {
+                                          e.preventDefault()
+                                          handleSeek(seg.start)
+                                        }
+                                      }}
+                                      className={`seg-row group flex cursor-pointer items-start gap-3 rounded-lg px-3 py-2.5 transition-all duration-200 ease-out ${active ? 'active transcript-active' : 'hover:bg-white/80 dark:hover:bg-stone-800/50'}`}
+                                      style={{ ['--seg-accent' as string]: accent } as React.CSSProperties}
+                                    >
+                                      <span className="seg-bar" />
+                                      <span
+                                        className={`mt-0.5 shrink-0 rounded-md border px-1.5 py-0.5 whitespace-nowrap font-mono text-[11px] backdrop-blur-sm ${active ? 'font-bold border-[#FF6B35]/40 bg-[#FF6B35]/10 text-[#EA580C] dark:border-[#D946EF]/40 dark:bg-[#D946EF]/10 dark:text-[#FF8A5C]' : 'border-transparent text-gray-400 dark:text-stone-500'} group-hover:border-[#FF6B35]/30 group-hover:text-[#C2410C] dark:group-hover:text-[#FF8A5C]`}
+                                      >
+                                        {formatTime(seg.start)}
+                                      </span>
+                                      <p className={`flex-1 text-sm leading-relaxed ${active ? 'text-[#9A3412] dark:text-[#FFE4D6]' : 'text-gray-800 dark:text-stone-200'}`}>{seg.text}</p>
+                                      <span className="mt-0.5 shrink-0 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+                                        <span
+                                          className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold text-white shadow-[0_0_12px_rgb(217_70_239/0.5)]"
+                                          style={{ background: accent }}
+                                        >
+                                          <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86a1 1 0 0 0-1.5.86z" /></svg>
+                                          Play from here
+                                        </span>
+                                      </span>
+                                    </div>
+                                  )
+                                })}
+                              </div>
                             </div>
                           )
                         })
@@ -661,100 +659,109 @@ export default function VideoDetail() {
                 <OutputSkeleton lines={5} />
               ))}
 
-              {mainTab === 'graph' && (graph ? (
-                <div>
-                  <div className="mb-4 flex gap-1 rounded-2xl border border-black/10 bg-white/65 p-1 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-stone-900/70">
-                    <ViewBtn active={graphView === 'neural'} onClick={() => setGraphView('neural')}>Neural</ViewBtn>
-                    <ViewBtn active={graphView === 'tree'} onClick={() => setGraphView('tree')}>Tree</ViewBtn>
-                    <ViewBtn active={graphView === 'network'} onClick={() => setGraphView('network')}>Network</ViewBtn>
-                    <ViewBtn active={graphView === 'list'} onClick={() => setGraphView('list')}>List</ViewBtn>
-                  </div>
-                  <AnimatePresence mode="wait">
-                    <motion.div
-                      key={graphView}
-                      initial={contentStream.initial}
-                      animate={contentStream.animate}
-                      exit={{ opacity: 0 }}
-                      transition={transitions.micro}
-                    >
-                      {graphView === 'neural' && (
-                      <Suspense fallback={<GraphFallback />}>
-                        <div className="h-[640px]">
-                          <NeuralNavigator
-                            nodes={displayNodes}
-                            edges={graph.edges}
-                            segments={displaySegments}
-                            onSeek={handleSeek}
-                          />
-                        </div>
-                      </Suspense>
-                    )}
-                    {graphView === 'tree' && (
-                        <Suspense fallback={<GraphFallback />}>
-                          <TopicTree graphNodes={displayNodes} graphEdges={graph.edges} onSeek={handleSeek} />
-                        </Suspense>
-                      )}
-                      {graphView === 'network' && (
-                        <Suspense fallback={<GraphFallback />}>
-                          <KnowledgeGraph graphNodes={displayNodes} graphEdges={graph.edges} onSeek={handleSeek} />
-                        </Suspense>
-                      )}
-                      {graphView === 'list' && (
-                        <div className="space-y-8">
-                          {topics.length > 0 && (
-                            <section>
-                              <h3 className="mb-3 font-semibold text-stone-800 dark:text-stone-200">Topics</h3>
-                              <motion.div className="grid grid-cols-1 sm:grid-cols-2 gap-3" initial="initial" animate="animate" variants={staggerContainer()}>
-                                {topics.map((node) => (
-                                  <motion.div key={node.id} variants={staggerItem()} className={`shine-card rounded-2xl p-3 cursor-pointer ${tw.surface} ${tw.surfaceHover}`} onClick={() => node.timestampRef != null && handleSeek(node.timestampRef)}>
-                                    <p className="text-sm font-medium dark:text-stone-100">{node.label}</p>
-                                    {node.timestampRef != null && <p className="mt-1 text-xs text-gray-400 dark:text-stone-500">{formatTime(node.timestampRef)}</p>}
-                                  </motion.div>
-                                ))}
-                              </motion.div>
-                            </section>
-                          )}
-                          {entities.length > 0 && (
-                            <section>
-                              <h3 className="mb-3 font-semibold text-stone-800 dark:text-stone-200">Entities</h3>
-                              <motion.div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3" initial="initial" animate="animate" variants={staggerContainer()}>
-                                {entities.map((node) => {
-                                  const et = (node.metadata?.entityType as string) || ''
-                                  return (
-                                    <motion.div key={node.id} variants={staggerItem()} className={`shine-card rounded-2xl p-3 flex items-center gap-3 cursor-pointer ${tw.surface} ${tw.surfaceHover}`} onClick={() => node.timestampRef != null && handleSeek(node.timestampRef)}>
-                                      <span className="text-lg">{ENTITY_ICONS[et] || '🏷️'}</span>
-                                      <div className="min-w-0 flex-1">
-                                        <p className="text-sm font-medium truncate dark:text-stone-100">{node.label}</p>
-                                        <p className="text-xs text-gray-400 dark:text-stone-500">{et}</p>
-                                      </div>
-                                      {node.timestampRef != null && <span className="font-mono text-xs text-gray-400 dark:text-stone-500">{formatTime(node.timestampRef)}</span>}
+              {mainTab === 'graph' && (
+                graph ? (
+                  /* Full-bleed: breaks the max-w-5xl column, edge-to-edge */
+                  <div className="relative left-1/2 right-1/2 w-screen -mx-[50vw] overflow-visible">
+                    <div className="px-4 pb-12 sm:px-6">
+                      <div className="flex gap-1 rounded-xl border border-black/10 bg-white/65 p-1 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-stone-900/70">
+                        <ViewBtn active={graphView === 'neural'} onClick={() => setGraphView('neural')}>Neural</ViewBtn>
+                        <ViewBtn active={graphView === 'tree'} onClick={() => setGraphView('tree')}>Tree</ViewBtn>
+                        <ViewBtn active={graphView === 'network'} onClick={() => setGraphView('network')}>Network</ViewBtn>
+                        <ViewBtn active={graphView === 'list'} onClick={() => setGraphView('list')}>List</ViewBtn>
+                      </div>
+
+                      <div className="mt-4">
+                        <AnimatePresence mode="wait" initial={false}>
+                          <motion.div
+                            key={graphView}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={transitions.micro}
+                          >
+                            {graphView === 'neural' ? (
+                              <Suspense fallback={<GraphFallback />}>
+                                <NeuralBreakout
+                                  nodes={displayNodes}
+                                  edges={graph.edges}
+                                  segments={displaySegments}
+                                  onSeek={handleSeek}
+                                />
+                              </Suspense>
+                            ) : graphView === 'tree' ? (
+                              <Suspense fallback={<GraphFallback />}>
+                                <div className="h-[calc(100dvh-8rem)] w-full">
+                                  <TopicTree graphNodes={displayNodes} graphEdges={graph.edges} onSeek={handleSeek} />
+                                </div>
+                              </Suspense>
+                            ) : graphView === 'network' ? (
+                              <Suspense fallback={<GraphFallback />}>
+                                <div className="h-[calc(100dvh-8rem)] w-full">
+                                  <KnowledgeGraph graphNodes={displayNodes} graphEdges={graph.edges} onSeek={handleSeek} />
+                                </div>
+                              </Suspense>
+                            ) : (
+                              <div className="mx-auto max-w-5xl space-y-8">
+                                {topics.length > 0 && (
+                                  <section>
+                                    <h3 className="mb-3 font-semibold text-stone-800 dark:text-stone-200">Topics</h3>
+                                    <motion.div className="grid grid-cols-1 sm:grid-cols-2 gap-3" initial="initial" animate="animate" variants={staggerContainer()}>
+                                      {topics.map((node) => (
+                                        <motion.div key={node.id} variants={staggerItem()} className={`shine-card rounded-2xl p-3 cursor-pointer ${tw.surface} ${tw.surfaceHover}`} onClick={() => node.timestampRef != null && handleSeek(node.timestampRef)}>
+                                          <p className="text-sm font-medium dark:text-stone-100">{node.label}</p>
+                                          {node.timestampRef != null && <p className="mt-1 text-xs text-gray-400 dark:text-stone-500">{formatTime(node.timestampRef)}</p>}
+                                        </motion.div>
+                                      ))}
                                     </motion.div>
-                                  )
-                                })}
-                              </motion.div>
-                            </section>
-                          )}
-                          {keywords.length > 0 && (
-                            <section>
-                              <h3 className="mb-3 font-semibold text-stone-800 dark:text-stone-200">Key Terms</h3>
-                              <div className="flex flex-wrap gap-2">
-                                {keywords.map((node) => (
-                                  <span key={node.id} className="rounded-full border border-stone-200 bg-gray-100 px-3 py-1 text-sm text-gray-700 cursor-pointer transition-colors duration-150 ease-out hover:border-[#FF6B35]/50 hover:bg-[#FF6B35]/10 dark:border-white/10 dark:bg-stone-800 dark:text-stone-300 dark:hover:border-[#D946EF]/40 dark:hover:bg-[#D946EF]/10"
-                                    onClick={() => node.timestampRef != null && handleSeek(node.timestampRef)}>{node.label}</span>
-                                ))}
+                                  </section>
+                                )}
+                                {entities.length > 0 && (
+                                  <section>
+                                    <h3 className="mb-3 font-semibold text-stone-800 dark:text-stone-200">Entities</h3>
+                                    <motion.div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" initial="initial" animate="animate" variants={staggerContainer()}>
+                                      {entities.map((node) => {
+                                        const et = (node.metadata?.entityType as string) || ''
+                                        return (
+                                          <motion.div key={node.id} variants={staggerItem()} className={`shine-card rounded-2xl p-3 flex items-center gap-3 cursor-pointer ${tw.surface} ${tw.surfaceHover}`} onClick={() => node.timestampRef != null && handleSeek(node.timestampRef)}>
+                                            <span className="text-lg">{ENTITY_ICONS[et] || '🏷️'}</span>
+                                            <div className="min-w-0 flex-1">
+                                              <p className="text-sm font-medium truncate dark:text-stone-100">{node.label}</p>
+                                              <p className="text-xs text-gray-400 dark:text-stone-500">{et}</p>
+                                            </div>
+                                            {node.timestampRef != null && <span className="font-mono text-xs text-gray-400 dark:text-stone-500">{formatTime(node.timestampRef)}</span>}
+                                          </motion.div>
+                                        )
+                                      })}
+                                    </motion.div>
+                                  </section>
+                                )}
+                                {keywords.length > 0 && (
+                                  <section>
+                                    <h3 className="mb-3 font-semibold text-stone-800 dark:text-stone-200">Key Terms</h3>
+                                    <div className="flex flex-wrap gap-2">
+                                      {keywords.map((node) => (
+                                        <span key={node.id} className="rounded-full border border-stone-200 bg-gray-100 px-3 py-1 text-sm text-gray-700 cursor-pointer transition-colors duration-150 ease-out hover:border-[#FF6B35]/50 hover:bg-[#FF6B35]/10 dark:border-white/10 dark:bg-stone-800 dark:text-stone-300 dark:hover:border-[#D946EF]/40 dark:hover:bg-[#D946EF]/10"
+                                          onClick={() => node.timestampRef != null && handleSeek(node.timestampRef)}>{node.label}</span>
+                                      ))}
+                                    </div>
+                                  </section>
+                                )}
                               </div>
-                            </section>
-                          )}
-                        </div>
-                      )}
-                    </motion.div>
-                  </AnimatePresence>
+                            )}
+                          </motion.div>
+                        </AnimatePresence>
+                      </div>
+                    </div>
+                  </div>
+                ) : null
+              )}
+
+              {mainTab === 'graph' && !graph && (
+                <div className="rounded-3xl border border-dashed border-[#FF6B35]/40 bg-white/65 py-16 text-center text-stone-500 backdrop-blur-xl dark:border-[#D946EF]/40 dark:bg-stone-900/50 dark:text-stone-400">
+                  {video.status === 'done' ? 'Analysis will appear once processing is complete.' : <OutputSkeleton lines={3} />}
                 </div>
-              ) : video.status === 'done' ? (
-                <div className="rounded-3xl border border-dashed border-[#FF6B35]/40 bg-white/65 py-16 text-center text-stone-500 backdrop-blur-xl dark:border-[#D946EF]/40 dark:bg-stone-900/50 dark:text-stone-400">Analysis will appear once processing is complete.</div>
-              ) : (
-                <OutputSkeleton lines={3} />
-              ))}
+              )}
 
               {mainTab === 'generate' && <GeneratePanel videoId={id!} />}
             </motion.div>
@@ -887,14 +894,14 @@ function StepNode({ state, index, label }: { state: StepState; index: number; la
     return (
       <span className="flex items-center gap-2">
         <motion.span
-          className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-emerald-500 text-white shadow-[0_0_16px_rgb(16_185_129/0.5)]"
+          className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#FF6B35] text-white shadow-[0_0_16px_rgb(255_107_53/0.5)]"
           initial={{ scale: 0.6, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={transitions.contentIn}
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7" /></svg>
         </motion.span>
-        <span className="hidden text-xs font-semibold text-emerald-600 sm:block dark:text-emerald-400">{label}</span>
+        <span className="hidden text-xs font-semibold text-[#EA580C] sm:block dark:text-[#FF8A5C]">{label}</span>
       </span>
     )
   }
@@ -947,7 +954,7 @@ function StepNode({ state, index, label }: { state: StepState; index: number; la
 function Connector({ state }: { state: 'done' | 'active' | 'pending' }) {
   const cls =
     state === 'done'
-      ? 'bg-emerald-500/60'
+      ? 'bg-[#FF6B35]/60'
       : state === 'active'
         ? 'bg-gradient-to-r from-[#FF6B35]/60 to-[#D946EF]/60'
         : 'bg-black/10 dark:bg-white/10'
@@ -983,11 +990,6 @@ function Chip({ tone = 'default', children }: { tone?: 'default' | 'tangerine' |
 function WorkspaceSkeleton() {
   return (
     <div className="min-h-screen bg-[#FAFAFA] dark:bg-[#0A0A0A]">
-      <header className="border-b border-black/10 bg-white/80 backdrop-blur-xl dark:border-white/10 dark:bg-[#0A0A0A]/80">
-        <div className="mx-auto max-w-5xl px-4 py-3">
-          <div className="h-6 w-48 rounded skeleton-shimmer" />
-        </div>
-      </header>
       <main className="mx-auto max-w-5xl px-4 py-8" aria-hidden="true">
         <div className="aspect-video rounded-3xl skeleton-shimmer" />
         <div className="mt-5 h-8 w-72 rounded skeleton-shimmer" />
@@ -1063,7 +1065,7 @@ const STATUS_DOT_COLORS: Record<string, string> = {
   downloading: 'bg-amber-400',
   processing: 'bg-orange-400',
   analyzing: 'bg-rose-400',
-  done: 'bg-green-400',
+  done: 'bg-[#FF6B35]',
   failed: 'bg-red-400',
 }
 
@@ -1218,7 +1220,7 @@ function GeneratePanel({ videoId }: { videoId: string }) {
                 initial={chatBubble('user').initial}
                 animate={chatBubble('user').animate}
                 transition={transitions.contentIn}
-                className="ml-auto max-w-[85%] self-end rounded-2xl bg-[#FF6B35] px-3 py-2 text-sm text-white shadow-[0_4px_16px_rgb(255_107_53/0.3)]"
+                className="ml-auto max-w-[85%] self-end rounded-2xl border border-[#FF6B35]/40 bg-[#FF6B35]/80 text-white shadow-[0_4px_20px_rgb(255_107_53/0.35)] backdrop-blur-xl"
               >
                 {item.q}
               </motion.div>
@@ -1226,9 +1228,17 @@ function GeneratePanel({ videoId }: { videoId: string }) {
                 initial={chatBubble('assistant').initial}
                 animate={chatBubble('assistant').animate}
                 transition={transitions.contentIn}
-                className="self-start max-w-[85%] whitespace-pre-wrap rounded-2xl bg-stone-100 px-3 py-2 text-sm text-stone-800 dark:bg-stone-800 dark:text-stone-200"
+                className="flex max-w-[85%] gap-2.5 self-start"
               >
-                <Typewriter text={item.a} />
+                <span className="relative mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#D946EF] to-[#A855F7] shadow-[0_0_16px_rgb(217_70_239/0.7)]">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
+                    <path d="M9.9 2.4 11 6l3.6 1.1-3.6 1.1L9.9 12l-1.1-3.8L5.2 7.1 8.8 6z" />
+                    <path d="m17 14 .8 2.4 2.4.8-2.4.8L17 20.4l-.8-2.4-2.4-.8 2.4-.8z" />
+                  </svg>
+                </span>
+                <div className="whitespace-pre-wrap rounded-2xl border border-[#D946EF]/25 bg-black/40 px-3.5 py-2.5 text-sm text-stone-200 shadow-[0_4px_24px_rgb(217_70_239/0.15)] backdrop-blur-xl">
+                  <Typewriter text={item.a} />
+                </div>
               </motion.div>
             </Fragment>
           ))}
@@ -1237,10 +1247,18 @@ function GeneratePanel({ videoId }: { videoId: string }) {
               initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={transitions.contentIn}
-              className="self-start inline-flex items-center gap-1.5 rounded-2xl bg-stone-100 px-3 py-2 text-[#A21CAF] dark:bg-stone-800 dark:text-[#E879F9]"
+              className="flex max-w-[85%] gap-2.5 self-start"
             >
-              <TypingDots />
-              <span className="text-xs">Thinking…</span>
+              <span className="mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#D946EF] to-[#A855F7] shadow-[0_0_16px_rgb(217_70_239/0.6)]">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
+                  <path d="M9.9 2.4 11 6l3.6 1.1-3.6 1.1L9.9 12l-1.1-3.8L5.2 7.1 8.8 6z" />
+                  <path d="m17 14 .8 2.4 2.4.8-2.4.8L17 20.4l-.8-2.4-2.4-.8 2.4-.8z" />
+                </svg>
+              </span>
+              <div className="inline-flex items-center gap-1.5 rounded-2xl border border-white/10 bg-black/40 px-3.5 py-2.5 text-[#E879F9] backdrop-blur-xl">
+                <TypingDots />
+                <span className="text-xs">Thinking…</span>
+              </div>
             </motion.div>
           )}
         </div>
@@ -1345,5 +1363,55 @@ function ViewBtn({ active, onClick, children }: { active: boolean; onClick: () =
     >
       {children}
     </button>
+  )
+}
+
+// Immersive knowledge-graph canvas that breaks out of the container and can
+// expand edge-to-edge fullscreen with a spring layout animation.
+function NeuralBreakout({
+  nodes,
+  edges,
+  segments,
+  onSeek,
+}: {
+  nodes?: GraphNode[]
+  edges?: { source: string; target: string; weight?: number }[]
+  segments?: Segment[]
+  onSeek?: (seconds: number) => void
+}) {
+  const [fullscreen, setFullscreen] = useState(false)
+  const reduced = usePrefersReducedMotion()
+
+  const spring = {
+    type: 'spring' as const,
+    stiffness: 280,
+    damping: 30,
+    mass: 1,
+  }
+
+  return (
+    <motion.div
+      layout
+      transition={reduced ? transitions.micro : spring}
+      className={`relative overflow-hidden rounded-2xl border border-black/10 bg-white/60 shadow-card dark:border-white/10 dark:bg-stone-900/70 ${
+        fullscreen ? 'fixed inset-0 z-50 rounded-none border-0' : ''
+      }`}
+      style={{ height: fullscreen ? '100dvh' : 'calc(100dvh - 8rem)' }}
+    >
+      <NeuralNavigator nodes={nodes} edges={edges} segments={segments} onSeek={onSeek} />
+
+      <button
+        type="button"
+        onClick={() => setFullscreen((v) => !v)}
+        aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+        className={`absolute right-3 top-3 z-20 grid place-items-center transition-all duration-200 ease-out ${
+          fullscreen
+            ? 'h-10 w-10 rounded-xl bg-gradient-to-r from-[#FF6B35] to-[#D946EF] text-white shadow-[0_0_20px_rgb(255_107_53/0.45)] hover:shadow-[0_0_28px_rgb(217_70_239/0.5)]'
+            : 'h-9 w-9 rounded-lg border border-black/10 bg-white/80 text-stone-600 backdrop-blur-md hover:bg-[#FF6B35] hover:text-white dark:border-white/10 dark:bg-stone-800/80 dark:text-stone-300'
+        }`}
+      >
+        {fullscreen ? <Minimize2 size={fullscreen ? 17 : 16} /> : <Maximize2 size={16} />}
+      </button>
+    </motion.div>
   )
 }

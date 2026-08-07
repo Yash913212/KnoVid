@@ -32,14 +32,14 @@ export default function AuthShell({
   footer,
 }: AuthShellProps) {
   return (
-    <div className="min-h-screen w-full bg-[#FAFAFA] lg:grid lg:grid-cols-[3fr_2fr] dark:bg-[#050505]">
+    <div className="relative min-h-screen w-full overflow-hidden lg:grid lg:grid-cols-[3fr_2fr]">
       {/* ── Brand canvas (60%) ─────────────────────────────────────── */}
       <aside className="relative hidden overflow-hidden lg:block" aria-hidden="true">
         <div className="absolute inset-0">
           <div className="mesh-ember absolute inset-0" />
-          <div className="mesh-blob mesh-a left-[8%] top-[4%] h-[440px] w-[440px]" />
-          <div className="mesh-blob mesh-b right-[2%] top-[36%] h-[400px] w-[400px]" />
-          <div className="mesh-blob mesh-c bottom-[2%] left-[18%] h-[380px] w-[380px]" />
+          <div className="mesh-blob mesh-a left-[8%] top-[4%] h-110 w-110" />
+          <div className="mesh-blob mesh-b right-[2%] top-[36%] h-100 w-100" />
+          <div className="mesh-blob mesh-c bottom-[2%] left-[18%] h-95 w-95" />
           <div className="auth-grid absolute inset-0" />
         </div>
 
@@ -48,7 +48,7 @@ export default function AuthShell({
 
           <div className="max-w-lg">
             <motion.h2
-              className="font-display text-5xl font-black leading-[1.08] tracking-tight text-stone-900 dark:text-white"
+              className="font-display text-5xl font-black leading-[1.08] tracking-tight bg-gradient-to-r from-[#FF6B35] to-[#D946EF] bg-clip-text text-transparent"
               initial={{ opacity: 0, y: 18 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ ...transitions.content, delay: 0.1 }}
@@ -57,7 +57,7 @@ export default function AuthShell({
                 <span key={i}>
                   {seg}
                   {i < arr.length - 1 ? (
-                    <span className="gradient-ember">{'your videos.'}</span>
+                    <span className="bg-gradient-to-r from-[#FF6B35] to-[#D946EF] bg-clip-text text-transparent">{'your videos.'}</span>
                   ) : null}
                 </span>
               ))}
@@ -102,7 +102,7 @@ export default function AuthShell({
 
         <motion.form
           onSubmit={onSubmit}
-          className="w-full max-w-sm"
+          className="w-full max-w-sm rounded-4xl border border-white/10 bg-black/40 p-8 shadow-2xl backdrop-blur-xl"
           initial={pageShell.initial}
           animate={pageShell.animate}
           transition={transitions.contentIn}
@@ -124,7 +124,7 @@ export default function AuthShell({
               <motion.p
                 key={error}
                 role="alert"
-                className="mt-5 rounded-lg border border-red-300/60 bg-red-50 px-3 py-2 text-sm text-red-600 shadow-[0_0_20px_rgb(239_68_68/0.12)] dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400 dark:shadow-[0_0_20px_rgb(239_68_68/0.15)]"
+                className="mt-5 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200 shadow-[0_0_15px_-5px_rgba(239,68,68,0.3)] line-clamp-2"
                 initial={{ opacity: 0, y: -6 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -4 }}
@@ -164,7 +164,7 @@ export default function AuthShell({
 
           <button
             type="button"
-            className="flex w-full items-center justify-center gap-2 rounded-xl border border-black/15 bg-white px-4 py-3 text-sm font-medium text-stone-700 transition-colors duration-200 hover:border-[#FF6B35]/60 hover:text-stone-900 dark:border-white/15 dark:bg-white/[0.03] dark:text-stone-300 dark:hover:border-[#D946EF]/60 dark:hover:text-white"
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-black/15 bg-white px-4 py-3 text-sm font-medium text-stone-700 transition-colors duration-200 hover:border-accent/60 hover:text-stone-900 dark:border-white/15 dark:bg-white/3 dark:text-stone-300 dark:hover:border-accent-2/60 dark:hover:text-white"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.438 9.8 8.205 11.387.6.113.82-.26.82-.577 0-.285-.01-1.04-.015-2.04-3.338.726-4.042-1.61-4.042-1.61-.546-1.387-1.333-1.756-1.333-1.756-1.09-.745.083-.73.083-.73 1.205.085 1.84 1.237 1.84 1.237 1.07 1.834 2.807 1.304 3.492.997.108-.775.418-1.305.762-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.468-2.38 1.235-3.22-.123-.303-.535-1.523.117-3.176 0 0 1.008-.322 3.3 1.23a11.5 11.5 0 0 1 3.003-.404c1.02.005 2.045.138 3.003.404 2.29-1.552 3.297-1.23 3.297-1.23.653 1.653.24 2.873.118 3.176.77.84 1.233 1.91 1.233 3.22 0 4.61-2.805 5.625-5.475 5.92.43.37.812 1.102.812 2.222 0 1.606-.015 2.898-.015 3.293 0 .32.216.694.825.576C20.565 21.797 24 17.3 24 12c0-6.63-5.37-12-12-12z" />
@@ -206,7 +206,7 @@ export function AuthField({
         autoComplete={autoComplete}
         required
         onChange={(e) => onChange(e.target.value)}
-        className="input-ember w-full bg-transparent px-0.5 pb-2.5 pt-1 text-sm text-stone-900 outline-none placeholder:text-stone-400 dark:text-white dark:placeholder:text-stone-500"
+        className="input-ember w-full border-b border-white/20 bg-transparent px-0.5 pb-2.5 pt-1 text-sm text-stone-100 outline-none placeholder:text-stone-400 focus:border-accent focus:shadow-[0_2px_10px_-3px_rgba(255,107,53,0.5)] dark:text-white dark:placeholder:text-stone-500"
       />
     </label>
   )
@@ -215,7 +215,7 @@ export function AuthField({
 function BrandRow() {
   return (
     <div className="flex items-center gap-2.5">
-      <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-[#FF6B35] to-[#D946EF] text-white shadow-[0_0_24px_rgb(217_70_239/0.45)]">
+      <span className="grid h-9 w-9 place-items-center rounded-xl bg-linear-to-br from-accent to-accent-2 text-white shadow-[0_0_24px_rgb(217_70_239/0.45)]">
         <IconLogo className="h-5 w-5" />
       </span>
       <span className="font-display text-lg font-black tracking-tight text-stone-900 dark:text-white">KnoVid</span>
@@ -225,8 +225,8 @@ function BrandRow() {
 
 function GlassStat({ value, label }: { value: string; label: string }) {
   return (
-    <div className="rounded-xl border border-black/10 bg-white/70 px-4 py-3 backdrop-blur-md dark:border-white/15 dark:bg-white/[0.04]">
-      <p className="font-mono text-sm font-bold text-[#EA580C] dark:text-[#FF8A5C]">{value}</p>
+    <div className="rounded-xl border border-white/10 bg-black/40 px-4 py-3 backdrop-blur-xl shadow-[0_20px_50px_rgba(0,0,0,0.3)]">
+      <p className="font-mono text-sm font-bold text-[#FF8A5C]">{value}</p>
       <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-widest text-stone-500 dark:text-[#737373]">{label}</p>
     </div>
   )
