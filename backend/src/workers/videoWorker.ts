@@ -2,6 +2,7 @@ import { Job } from "bullmq";
 import { Video } from "../models/Video.js";
 import { Transcript } from "../models/Transcript.js";
 import { Graph } from "../models/Graph.js";
+import { GeneratedContent } from "../models/GeneratedContent.js";
 import { createVideoWorker } from "../config/queue.js";
 import { config } from "../config/index.js";
 
@@ -66,6 +67,27 @@ async function processVideo(job: Job) {
       // Non-fatal: the transcript is still usable without a knowledge graph.
       const errText = await analyzeResp.text();
       console.warn(`Graph analysis failed for ${videoId}: ${errText}`);
+    }
+
+    await setStatus(videoId, "summarizing");
+
+    const sumResp = await fetch(`${config.processingServiceUrl}/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ videoId, segments: result.segments, type: "summary" }),
+      signal: AbortSignal.timeout(300000),
+    });
+
+    if (sumResp.ok) {
+      const sumData = await sumResp.json();
+      await GeneratedContent.findOneAndUpdate(
+        { videoId, type: "summary" },
+        { videoId, type: "summary", content: sumData.content, format: sumData.format || "markdown" },
+        { upsert: true }
+      );
+    } else {
+      const errText = await sumResp.text();
+      console.warn(`Summary generation failed for ${videoId}: ${errText}`);
     }
 
     await job.updateProgress(100);

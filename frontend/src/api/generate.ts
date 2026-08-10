@@ -25,6 +25,23 @@ export async function askQuestion(videoId: string, question: string) {
   return data as { answer: string }
 }
 
+export interface FuseCitation {
+  time: number
+  speaker: string
+  text: string
+}
+
+export interface FuseResult {
+  videoId: string
+  explanation: string
+  citations: FuseCitation[]
+}
+
+export async function fuseConcepts(videoId: string, a: string, b: string) {
+  const { data } = await api.post(`/generate/fuse/${videoId}`, { a, b })
+  return data as FuseResult
+}
+
 export async function exportVideo(videoId: string, format: 'markdown' | 'json') {
   const { data } = await api.get(`/generate/export/${videoId}/${format}`)
   return data as string | object

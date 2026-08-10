@@ -106,6 +106,7 @@ Backend (`:3001`):
 | `GET /api/graphs/:videoId` | JWT | Knowledge graph nodes/edges |
 | `POST /api/generate` | JWT | Generate `summary` / `notes` / `quiz` |
 | `POST /api/generate/chat/:videoId` | JWT | Q&A against the transcript |
+| `POST /api/generate/fuse/:videoId` | JWT | Node Fusion — synthesize a grounded connection between two concepts |
 | `GET /api/generate/export/:videoId/:format` | JWT | Export (`markdown` / `json`) |
 | `POST /api/translate` | JWT | Translate transcript segments + graph labels |
 | `GET /api/files/<name>` | — | Serve uploaded video files for playback |
@@ -130,11 +131,13 @@ Processing service (`:8000`): auto-generated docs at
 
 ## Status
 
-- **Done:** Phase 0 (housekeeping) and Phase A (core pipeline hardening) —
-  upload + URL ingestion share one worker pipeline; transcribe → diarize →
-  graph runs unattended; generation/chat/translate verified against a real
-  transcript; auth works; failures surface with `errorMessage` and are retryable.
-- **Next:** Phase B — export formats (SRT/VTT/PDF/DOCX), editable transcript
-  synced to video playback, full-text search; Phase C — motion/UI polish;
-  Phase D — chapter segmentation, sentiment + filler-word highlighting,
-  speaker renaming.
+- **Done:** Phase 0 (housekeeping), Phase A (core pipeline hardening), and
+  Phase C (motion/UI polish) — upload + URL ingestion share one worker
+  pipeline; transcribe → diarize → graph runs unattended; generation/chat/
+  translate verified against a real transcript; auth works; failures surface
+  with `errorMessage` and are retryable; transcript search, SRT/VTT subtitle
+  export, and a premium reduced-motion-aware UI polish are live in the
+  frontend.
+- **Next:** Phase B remainder — PDF/DOCX export, editable transcript synced to
+  video playback, cross-video full-text search; Phase D — chapter segmentation,
+  sentiment + filler-word highlighting, speaker renaming.

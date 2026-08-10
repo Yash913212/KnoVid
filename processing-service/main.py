@@ -573,6 +573,25 @@ class ChatResponse(BaseModel):
     answer: str
 
 
+class FuseCitation(BaseModel):
+    time: float
+    speaker: str
+    text: str
+
+
+class FuseRequest(BaseModel):
+    videoId: str
+    segments: list[SegmentOut]
+    a: str  # concept A label
+    b: str  # concept B label
+
+
+class FuseResponse(BaseModel):
+    videoId: str
+    explanation: str
+    citations: list[FuseCitation]
+
+
 LLM_API_URL = os.getenv("LLM_API_URL", "https://api.openai.com/v1")
 LLM_API_KEY = os.getenv("LLM_API_KEY", "")
 LLM_MODEL = os.getenv("LLM_MODEL", "gpt-4o-mini")
@@ -697,6 +716,80 @@ async def chat_with_video(req: ChatRequest):
 
     fallback = template_answer(req.question, context, full_text)
     return ChatResponse(videoId=req.videoId, answer=fallback)
+
+
+def _fuse_context(segments: list[SegmentOut], a: str, b: str) -> list[FuseCitation]:
+    """Real evidence: transcript moments where concept A, B, or both appear."""
+    a_mentions = [s for s in segments if a.lower() in s.text.lower()]
+    b_mentions = [s for s in segments if b.lower() in s.text.lower()]
+    b_ids = {id(s) for s in b_mentions}
+    both = [s for s in a_mentions if id(s) in b_ids]
+
+    citations: list[FuseCitation] = []
+    seen = set()
+    for s in both + a_mentions + b_mentions:
+        key = (s.start, s.text)
+        if key in seen:
+            continue
+        seen.add(key)
+        citations.append(FuseCitation(time=s.start, speaker=s.speaker, text=s.text))
+        if len(citations) >= 5:
+            break
+    return citations
+
+
+@app.post("/fuse", response_model=FuseResponse)
+async def fuse_concepts(req: FuseRequest):
+    citations = _fuse_context(req.segments, req.a, req.b)
+
+    if not citations:
+        return FuseResponse(
+            videoId=req.videoId,
+            explanation=(
+                f'"{req.a}" and "{req.b}" never appear in the transcript, so no '
+                "connection can be grounded in this video. They may be related by "
+                "topic instead — try asking the AI chat about the link."
+            ),
+            citations=[],
+        )
+
+    context_lines = []
+    for c in citations:
+        speaker = f"[{c.speaker}] " if c.speaker else ""
+        ts = f"{int(c.time // 60)}:{int(c.time % 60):02d}"
+        context_lines.append(f"({ts}) {speaker}{c.text}")
+    context = "\n".join(context_lines)
+
+    system = (
+        "You are an analyst for a video knowledge graph. Two concepts from the "
+        "video were dragged together on a spatial canvas to be 'fused'. Using ONLY "
+        "the transcript moments below, explain how the two concepts are connected "
+        "in this specific video. Reference the speaker and timestamp where useful. "
+        "Keep it to 2-4 sentences, plain text, no markdown."
+    )
+    user = (
+        f"Concept A: {req.a}\nConcept B: {req.b}\n\n"
+        f"Transcript moments where these concepts appear:\n{context}"
+    )
+
+    llm_explanation = await call_llm(system, user)
+    if llm_explanation:
+        return FuseResponse(videoId=req.videoId, explanation=llm_explanation, citations=citations)
+
+    bullets = []
+    for c in citations[:3]:
+        ts = f"{int(c.time // 60)}:{int(c.time % 60):02d}"
+        speaker = c.speaker or "Speaker"
+        bullets.append(f"- [{speaker} @ {ts}] {c.text[:140]}")
+    return FuseResponse(
+        videoId=req.videoId,
+        explanation=(
+            f'In this video, "{req.a}" and "{req.b}" are discussed close together:\n\n'
+            + "\n".join(bullets)
+            + "\n\nSet an LLM_API_KEY for a fully synthesized connection."
+        ),
+        citations=citations,
+    )
 
 
 def template_generate(type_: str, full_text: str, segments: list[SegmentOut]) -> str:

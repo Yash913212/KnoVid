@@ -127,6 +127,46 @@ html.dark body {
   color: #1c1917;
 }
 
+/* ─── Brand scrollbar (webkit + firefox) ──────────────────────────── */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #ff6b35, #d946ef);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #ff9a3d, #e879f9);
+  background-clip: padding-box;
+}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(255 107 53 / 0.65) transparent;
+}
+
+/* ─── Film grain over the whole app (premium texture) ─────────────── */
+@keyframes grain-shift {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(-2%, 1.5%); }
+  50% { transform: translate(1.5%, -1%); }
+  75% { transform: translate(-1%, -2%); }
+}
+.grain-overlay {
+  position: fixed;
+  inset: -50%;
+  z-index: 1;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  opacity: 0.028;
+  animation: grain-shift 1.2s steps(4) infinite;
+}
+
 /* Animated app atmosphere */
 @keyframes aurora-drift {
   0%, 100% { transform: translate3d(-1.5%, -0.75%, 0) rotate(0deg) scale(1); }
@@ -927,6 +967,10 @@ html.dark .neural-navigator {
   .typing-dot,
   .seg-bar {
     animation: none;
+  }
+  .grain-overlay {
+    animation: none;
+    opacity: 0;
   }
   .seg-row .seg-bar { opacity: 0; }
   .transcript-active {

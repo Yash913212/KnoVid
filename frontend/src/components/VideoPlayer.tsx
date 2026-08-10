@@ -71,6 +71,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(({ url, filePath, onTim
   const [idle, setIdle] = useState(false)
   const [menu, setMenu] = useState<null | 'speed'>(null)
   const [scrubHover, setScrubHover] = useState<number | null>(null)
+  const [ytReady, setYtReady] = useState(false)
 
   const isYT = !!url && isYouTubeUrl(url)
   const src = filePath ? `/api/files/${encodeURIComponent(filePath.split('/').pop() || '')}` : url
@@ -82,14 +83,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(({ url, filePath, onTim
       if (v) {
         v.currentTime = Math.max(0, seconds)
         v.play()
-      } else if (iframeRef.current?.contentWindow) {
+      } else if (ytReady && iframeRef.current?.contentWindow) {
         iframeRef.current.contentWindow.postMessage(
           JSON.stringify({ event: 'command', func: 'seekTo', args: [seconds, true] }),
           '*'
         )
       }
     },
-  }))
+  }), [ytReady])
 
   // ── Play/pause + time + buffering (HTML5 video) ────────────────
   const syncTime = useCallback(() => {
@@ -196,7 +197,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(({ url, filePath, onTim
 
   // ── YouTube time polling ───────────────────────────────────────
   useEffect(() => {
-    if (!isYT || !onTimeUpdate) return
+    if (!isYT || !onTimeUpdate || !ytReady) return
     const interval = setInterval(() => {
       iframeRef.current?.contentWindow?.postMessage(
         JSON.stringify({ event: 'command', func: 'getCurrentTime', args: [] }),
@@ -204,16 +205,24 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(({ url, filePath, onTim
       )
     }, YT_POLL_INTERVAL)
     return () => clearInterval(interval)
-  }, [isYT, onTimeUpdate])
+  }, [isYT, onTimeUpdate, ytReady])
 
   useEffect(() => {
-    if (!isYT || !onTimeUpdate) return
+    if (!isYT) return
     const handler = (e: MessageEvent) => {
-      const data = e.data as { event?: string; info?: { currentTime?: number } } | null
+      if (e.origin !== 'https://www.youtube-nocookie.com' && e.origin !== 'https://www.youtube.com') return
+      let data = e.data as { event?: string; info?: { currentTime?: number } } | null
+      if (typeof e.data === 'string') {
+        try { data = JSON.parse(e.data) as typeof data } catch { return }
+      }
+      if (data && typeof data === 'object' && data.event === 'onReady') {
+        setYtReady(true)
+        return
+      }
       if (
         data && typeof data === 'object' &&
         data.event === 'infoDelivery' &&
-        typeof data.info?.currentTime === 'number'
+        typeof data.info?.currentTime === 'number' && onTimeUpdate
       ) {
         onTimeUpdate(data.info.currentTime)
       }
@@ -222,18 +231,23 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(({ url, filePath, onTim
     return () => window.removeEventListener('message', handler)
   }, [isYT, onTimeUpdate])
 
+  useEffect(() => setYtReady(false), [url, isYT])
+
   const pct = duration > 0 ? (currentTime / duration) * 100 : 0
 
   // ── YouTube: keep native iframe wrapper ────────────────────────
   if (isYT) {
     const videoId = parseYouTubeUrl(url)
+    const origin = typeof window !== 'undefined' ? encodeURIComponent(window.location.origin) : ''
     return (
       <div className="aspect-video bg-black rounded-lg overflow-hidden">
         <iframe
           ref={iframeRef}
-          src={`https://www.youtube.com/embed/${videoId}?enablejsapi=1&playsinline=1`}
+          src={`https://www.youtube-nocookie.com/embed/${videoId}?enablejsapi=1&playsinline=1&rel=0&origin=${origin}`}
           className="w-full h-full"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          referrerPolicy="strict-origin-when-cross-origin"
+          title="YouTube video player"
           allowFullScreen
         />
       </div>

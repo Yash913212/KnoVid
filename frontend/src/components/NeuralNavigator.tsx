@@ -21,10 +21,13 @@ import {
   type NodeMouseHandler,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { ZoomIn, ZoomOut, Maximize, Play, X, Sparkles, Copy, Check, MousePointer2 } from 'lucide-react'
+import { ZoomIn, ZoomOut, Maximize, Play, X, Sparkles, Copy, Check, MousePointer2, RotateCcw } from 'lucide-react'
 import type { GraphNode } from '../api/graphs'
 import type { Segment } from '../api/transcripts'
+import { fuseConcepts, type FuseResult } from '../api/generate'
 import { formatTime } from '../utils'
+
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 // ─── Data model ────────────────────────────────────────────────────────
 
@@ -54,76 +57,10 @@ export type NavLink = {
 type ConceptFlowNode = Node<NavConcept, 'concept'>
 type NavFlowEdge = Edge<{ weight?: number }, 'thought'>
 
-// ─── Mock data (demonstration) ─────────────────────────────────────────
-
-const MOCK_CONCEPTS: NavConcept[] = [
-  {
-    id: 'nn',
-    label: 'Neural Networks',
-    weight: 0.92,
-    mentions: 14,
-    speakers: ['Ada', 'Yann', 'Fei-Fei'],
-    speakerMentions: { Ada: 6, Yann: 5, 'Fei-Fei': 3 },
-    firstMention: 42,
-    snippets: [
-      { time: 42, speaker: 'Ada', text: 'Neural networks learn by adjusting millions of small parameters across layers.' },
-      { time: 158, speaker: 'Yann', text: 'The power of neural networks comes from representation learning at scale.' },
-      { time: 274, speaker: 'Fei-Fei', text: 'Every neural network needs a well-defined task and a good dataset to shine.' },
-    ],
-  },
-  {
-    id: 'att',
-    label: 'Attention Mechanism',
-    weight: 0.74,
-    mentions: 9,
-    speakers: ['Ada', 'Yann'],
-    speakerMentions: { Ada: 6, Yann: 3 },
-    firstMention: 96,
-    snippets: [
-      { time: 96, speaker: 'Ada', text: 'The attention mechanism lets a model focus on the most relevant parts of the input.' },
-      { time: 203, speaker: 'Yann', text: 'Attention mechanisms replaced recurrence by weighting every token against every other.' },
-    ],
-  },
-  {
-    id: 'bp',
-    label: 'Backpropagation',
-    weight: 0.58,
-    mentions: 7,
-    speakers: ['Fei-Fei', 'Yann'],
-    speakerMentions: { 'Fei-Fei': 4, Yann: 3 },
-    firstMention: 130,
-    snippets: [
-      { time: 130, speaker: 'Fei-Fei', text: 'Backpropagation propagates the loss gradient backward through the network.' },
-      { time: 241, speaker: 'Yann', text: 'Without backpropagation, training deep networks would be impractical.' },
-    ],
-  },
-  {
-    id: 'loss',
-    label: 'Loss Function',
-    weight: 0.46,
-    mentions: 6,
-    speakers: ['Ada', 'Fei-Fei'],
-    speakerMentions: { Ada: 4, 'Fei-Fei': 2 },
-    firstMention: 171,
-    snippets: [
-      { time: 171, speaker: 'Ada', text: 'The loss function measures how far the prediction is from the ground truth.' },
-      { time: 289, speaker: 'Fei-Fei', text: 'Choosing the right loss function shapes everything a model optimizes for.' },
-    ],
-  },
-]
-
-const MOCK_LINKS: NavLink[] = [
-  { source: 'nn', target: 'att', weight: 0.86 },
-  { source: 'nn', target: 'bp', weight: 0.72 },
-  { source: 'nn', target: 'loss', weight: 0.45 },
-  { source: 'att', target: 'loss', weight: 0.55 },
-  { source: 'bp', target: 'loss', weight: 0.66 },
-  { source: 'att', target: 'bp', weight: 0.4 },
-]
-
 // ─── Props ─────────────────────────────────────────────────────────────
 
 export interface NeuralNavigatorProps {
+  videoId: string
   nodes?: GraphNode[]
   edges?: { source: string; target: string; weight?: number }[]
   segments?: Segment[]
@@ -132,23 +69,39 @@ export interface NeuralNavigatorProps {
 
 // ─── Entry — composes the whole experience ─────────────────────────────
 
-export default function NeuralNavigator({ nodes, edges, segments, onSeek }: NeuralNavigatorProps) {
+export default function NeuralNavigator({ videoId, nodes, edges, segments, onSeek }: NeuralNavigatorProps) {
   const concepts = useMemo(() => {
-    if (!nodes || nodes.length === 0) return MOCK_CONCEPTS
+    if (!nodes || nodes.length === 0) return []
     return buildConcepts(nodes, segments ?? [])
   }, [nodes, segments])
 
   const links = useMemo(() => {
-    if (!nodes || nodes.length === 0) return MOCK_LINKS
+    if (!nodes || nodes.length === 0) return []
     const ids = new Set(concepts.map((c) => c.id))
     return (edges ?? [])
       .filter((e) => ids.has(e.source) && ids.has(e.target))
       .map((e) => ({ source: e.source, target: e.target, weight: Math.min(1, Math.max(0.15, e.weight ?? 0.5)) }))
   }, [nodes, edges, concepts])
 
+  if (concepts.length === 0) {
+    return (
+      <div className="neural-navigator grid h-full min-h-[560px] w-full place-items-center rounded-3xl border border-black/10 dark:border-white/10">
+        <div className="max-w-xs px-6 text-center">
+          <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-[#FF6B35] to-[#D946EF] text-white shadow-[0_0_24px_rgb(217_70_239/0.5)]">
+            <Sparkles size={20} />
+          </span>
+          <p className="font-display mt-4 text-sm font-bold text-stone-700 dark:text-stone-200">No knowledge graph yet</p>
+          <p className="mt-1.5 text-xs leading-relaxed text-stone-500 dark:text-stone-400">
+            Import a video and let the pipeline map its concepts — this canvas fills itself.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <ReactFlowProvider>
-      <SpatialCanvas concepts={concepts} links={links} onSeek={onSeek} />
+      <SpatialCanvas videoId={videoId} concepts={concepts} links={links} onSeek={onSeek} />
     </ReactFlowProvider>
   )
 }
@@ -197,10 +150,12 @@ const nodeTypes = { concept: ConceptNode } satisfies NodeTypes
 const edgeTypes = { thought: ThoughtEdge } satisfies EdgeTypes
 
 function SpatialCanvas({
+  videoId,
   concepts,
   links,
   onSeek,
 }: {
+  videoId: string
   concepts: NavConcept[]
   links: NavLink[]
   onSeek?: (seconds: number) => void
@@ -365,7 +320,7 @@ function SpatialCanvas({
       <ContextualInspector concept={inspected} onClose={() => setInspected(null)} onSeek={onSeek} />
 
       {/* NodeFusionModal */}
-      <NodeFusionModal fusion={fusion} onClose={() => setFusion(null)} />
+      <NodeFusionModal fusion={fusion} videoId={videoId} onSeek={onSeek} onClose={() => setFusion(null)} />
     </div>
   )
 }
@@ -573,13 +528,17 @@ function NodeFusionZone({
   )
 }
 
-// ─── NodeFusionModal — simulated LLM synthesis ─────────────────────────
+// ─── NodeFusionModal — LLM-grounded synthesis ──────────────────────────
 
 function NodeFusionModal({
   fusion,
+  videoId,
+  onSeek,
   onClose,
 }: {
   fusion: { a: NavConcept; b: NavConcept } | null
+  videoId: string
+  onSeek?: (seconds: number) => void
   onClose: () => void
 }) {
   return (
@@ -602,7 +561,7 @@ function NodeFusionModal({
             transition={{ type: 'spring', stiffness: 320, damping: 26 }}
             className="w-full max-w-lg overflow-hidden rounded-3xl border border-white/10 bg-[#0A0A0A]/95 shadow-[0_0_80px_rgb(217_70_239/0.25)]"
           >
-            <FusionBody a={fusion.a} b={fusion.b} onClose={onClose} />
+            <FusionBody videoId={videoId} a={fusion.a} b={fusion.b} onSeek={onSeek} onClose={onClose} />
           </motion.div>
         </motion.div>
       )}
@@ -610,32 +569,69 @@ function NodeFusionModal({
   )
 }
 
-function FusionBody({ a, b, onClose }: { a: NavConcept; b: NavConcept; onClose: () => void }) {
+function FusionBody({
+  videoId,
+  a,
+  b,
+  onSeek,
+  onClose,
+}: {
+  videoId: string
+  a: NavConcept
+  b: NavConcept
+  onSeek?: (seconds: number) => void
+  onClose: () => void
+}) {
   const [stage, setStage] = useState(0)
   const [phase, setPhase] = useState<'synth' | 'done'>('synth')
+  const [result, setResult] = useState<FuseResult | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [attempt, setAttempt] = useState(0)
   const [copied, setCopied] = useState(false)
-  const explanation = useMemo(() => synthesize(a.label, b.label), [a, b])
 
   useEffect(() => {
+    let cancelled = false
+    setPhase('synth')
+    setError(null)
+    setResult(null)
+    setStage(0)
+
     const t1 = setTimeout(() => setStage(1), 850)
     const t2 = setTimeout(() => setStage(2), 1750)
-    const t3 = setTimeout(() => setPhase('done'), 2700)
+
+    const run = async () => {
+      try {
+        const [res] = await Promise.all([fuseConcepts(videoId, a.label, b.label), delay(2700)])
+        if (cancelled) return
+        setResult(res)
+        setPhase('done')
+      } catch {
+        if (cancelled) return
+        setError('Fusion failed — is the processing service reachable?')
+        setPhase('done')
+      }
+    }
+    run()
+
     return () => {
+      cancelled = true
       clearTimeout(t1)
       clearTimeout(t2)
-      clearTimeout(t3)
     }
-  }, [])
+  }, [videoId, a.label, b.label, attempt])
 
   const steps = [
     'Reading speaker context for both concepts',
     'Cross-referencing shared transcript turns',
-    'Drafting the connection in video context',
+    'Synthesizing the connection from source moments',
   ]
 
   const copy = async () => {
+    const body = result
+      ? `${result.explanation}${result.citations.length ? `\n\nEvidence:\n${result.citations.map((c) => `[${formatTime(c.time)}] ${c.speaker}: ${c.text}`).join('\n')}` : ''}`
+      : ''
     try {
-      await navigator.clipboard.writeText(explanation)
+      await navigator.clipboard.writeText(body)
       setCopied(true)
       setTimeout(() => setCopied(false), 1600)
     } catch {}
@@ -647,9 +643,18 @@ function FusionBody({ a, b, onClose }: { a: NavConcept; b: NavConcept; onClose: 
         <div className="min-w-0">
           <p className="font-display text-[10px] font-bold uppercase tracking-[0.24em] text-[#FF8A5C]">Node Fusion</p>
           <h3 className="font-display mt-1 text-lg font-black leading-snug text-white">
-            Synthesizing connection between{' '}
-            <span className="gradient-ember">{a.label}</span> and{' '}
-            <span className="gradient-ember">{b.label}</span>…
+            {phase === 'synth' ? (
+              <>
+                Synthesizing connection between{' '}
+                <span className="gradient-ember">{a.label}</span> and{' '}
+                <span className="gradient-ember">{b.label}</span>…
+              </>
+            ) : (
+              <>
+                <span className="gradient-ember">{a.label}</span> ↔{' '}
+                <span className="gradient-ember">{b.label}</span>
+              </>
+            )}
           </h3>
         </div>
         <button
@@ -708,39 +713,78 @@ function FusionBody({ a, b, onClose }: { a: NavConcept; b: NavConcept; onClose: 
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.35 }}
             >
-              <div className="flex items-center gap-2">
-                <Sparkles size={14} className="text-[#FF8A5C]" />
-                <p className="font-display text-xs font-bold uppercase tracking-[0.2em] text-[#E879F9]">Connection mapped</p>
-              </div>
-              <p className="mt-3 text-sm leading-relaxed text-stone-300">{explanation}</p>
-              <div className="mt-4 flex gap-2">
-                <button
-                  type="button"
-                  onClick={copy}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-[#FF6B35]/40 bg-[#FF6B35]/10 px-3 py-1.5 text-xs font-semibold text-[#FF8A5C] transition-colors hover:bg-[#FF6B35]/20"
-                >
-                  {copied ? <Check size={12} /> : <Copy size={12} />}
-                  {copied ? 'Copied' : 'Copy insight'}
-                </button>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-[#D946EF]/40 bg-[#D946EF]/10 px-3 py-1.5 text-xs font-semibold text-[#E879F9] transition-colors hover:bg-[#D946EF]/20"
-                >
-                  <MousePointer2 size={12} />
-                  Back to canvas
-                </button>
-              </div>
+              {error ? (
+                <div className="rounded-2xl border border-[#FF6B35]/30 bg-[#FF6B35]/[0.06] p-4 text-sm text-stone-300">
+                  <p className="font-semibold text-[#FF8A5C]">{error}</p>
+                  <button
+                    type="button"
+                    onClick={() => setAttempt((n) => n + 1)}
+                    className="mt-3 rounded-xl border border-[#FF6B35]/40 bg-[#FF6B35]/10 px-3 py-1.5 text-xs font-semibold text-[#FF8A5C] transition-colors hover:bg-[#FF6B35]/20"
+                  >
+                    <RotateCcw size={12} className="mr-1 inline-block" />
+                    Retry fusion
+                  </button>
+                </div>
+              ) : (
+                result && (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <Sparkles size={14} className="text-[#FF8A5C]" />
+                      <p className="font-display text-xs font-bold uppercase tracking-[0.2em] text-[#E879F9]">Connection mapped</p>
+                    </div>
+                    <p className="mt-3 whitespace-pre-line text-sm leading-7 text-stone-200">{result.explanation}</p>
+
+                    {result.citations.length > 0 && (
+                      <div className="mt-5">
+                        <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-stone-400">Source evidence</p>
+                        <div className="space-y-2">
+                          {result.citations.map((c, i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              onClick={() => onSeek?.(c.time)}
+                              className="group block w-full rounded-xl border border-white/10 bg-white/[0.03] p-3 text-left transition-colors hover:border-[#D946EF]/50"
+                            >
+                              <div className="mb-1 flex items-center gap-2">
+                                <span className="font-mono text-[10px] font-semibold text-[#FF8A5C]">{formatTime(c.time)}</span>
+                                <span className="rounded bg-white/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-stone-400">
+                                  {c.speaker || 'Speaker'}
+                                </span>
+                              </div>
+                              <p className="text-xs leading-relaxed text-stone-400 group-hover:text-stone-200">{c.text}</p>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="mt-4 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={copy}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-[#FF6B35]/40 bg-[#FF6B35]/10 px-3 py-1.5 text-xs font-semibold text-[#FF8A5C] transition-colors hover:bg-[#FF6B35]/20"
+                      >
+                        {copied ? <Check size={12} /> : <Copy size={12} />}
+                        {copied ? 'Copied' : 'Copy insight'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={onClose}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-[#D946EF]/40 bg-[#D946EF]/10 px-3 py-1.5 text-xs font-semibold text-[#E879F9] transition-colors hover:bg-[#D946EF]/20"
+                      >
+                        <MousePointer2 size={12} />
+                        Back to canvas
+                      </button>
+                    </div>
+                  </>
+                )
+              )}
             </motion.div>
           )}
         </AnimatePresence>
       </div>
     </div>
   )
-}
-
-function synthesize(a: string, b: string): string {
-  return `In this video, "${a}" and "${b}" are tightly coupled. ${a} provides the representational substrate the model reasons over, while ${b} steers how that reasoning is measured and corrected. The presenter ties them together twice — once while walking the training loop, and again during the discussion of generalization — which suggests ${b} is what turns raw ${a.toLowerCase()} output into a concrete learning signal. Dropping "${b}" from the conversation would make "${a}" feel abstract and ungrounded.`
 }
 
 // ─── 4. ContextualInspector — right side panel ─────────────────────────

@@ -2,6 +2,7 @@ import type { FormEvent, ReactNode } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { pageShell, transitions } from '../lib/motion'
 import ThemeToggle from './ThemeToggle'
+import Magnetic from './Magnetic'
 
 const CANVAS_HEADLINE = 'Unlock the knowledge trapped in your videos.'
 const CANVAS_SUB =
@@ -137,24 +138,26 @@ export default function AuthShell({
 
           <div className="mt-8 space-y-5">{children}</div>
 
-          <motion.button
-            type="submit"
-            disabled={busy}
-            className="btn-ember mt-8 w-full rounded-xl px-4 py-3 text-sm font-semibold text-white"
-            whileTap={{ scale: busy ? 1 : 0.98 }}
-          >
-            {busy ? (
-              <span className="inline-flex items-center gap-2">
-                <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeOpacity="0.3" strokeWidth="3" />
-                  <path d="M22 12a10 10 0 0 0-10-10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-                </svg>
-                Working…
-              </span>
-            ) : (
-              submitLabel
-            )}
-          </motion.button>
+          <Magnetic strength={0.3} className="block w-full">
+            <motion.button
+              type="submit"
+              disabled={busy}
+              className="btn-ember mt-8 w-full rounded-xl px-4 py-3 text-sm font-semibold text-white"
+              whileTap={{ scale: busy ? 1 : 0.98 }}
+            >
+              {busy ? (
+                <span className="inline-flex items-center gap-2">
+                  <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeOpacity="0.3" strokeWidth="3" />
+                    <path d="M22 12a10 10 0 0 0-10-10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                  </svg>
+                  Working…
+                </span>
+              ) : (
+                submitLabel
+              )}
+            </motion.button>
+          </Magnetic>
 
           <div className="my-5 flex items-center gap-3 text-[11px] font-semibold uppercase tracking-widest text-stone-400 dark:text-stone-500">
             <span className="h-px flex-1 bg-black/10 dark:bg-white/10" />

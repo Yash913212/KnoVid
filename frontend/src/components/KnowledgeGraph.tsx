@@ -316,6 +316,15 @@ export default function KnowledgeGraph({ graphNodes, graphEdges, onSeek }: Props
               timeoutIds.push(
                 setTimeout(() => {
                   visNodes.update({ id: nodeId, opacity: 1 })
+                  // Add a subtle scale pop-in effect
+                  const node = visNodes.get(nodeId)
+                  if (node) {
+                    const baseSize = (node.size as number) ?? 15
+                    visNodes.update({ id: nodeId, size: baseSize * 1.15 })
+                    setTimeout(() => {
+                      visNodes.update({ id: nodeId, size: baseSize })
+                    }, 200)
+                  }
                 }, d * DURATION_MS.staggerDelay * 2 + within * DURATION_MS.staggerDelay)
               )
             })

@@ -7,6 +7,8 @@ import PageFade from './components/PageFade'
 import CommandPalette from './components/CommandPalette'
 import AppShell from './components/layout/AppShell'
 import AuroraBackground from './components/layout/AuroraBackground'
+import CursorGlow from './components/CursorGlow'
+import ScrollProgress from './components/ScrollProgress'
 
 const Login = lazy(() => import('./pages/Login'))
 const Register = lazy(() => import('./pages/Register'))
@@ -29,6 +31,9 @@ function App() {
       <ToastProvider>
         <AuthProvider>
           <AuroraBackground />
+          <CursorGlow />
+          <ScrollProgress />
+          <div aria-hidden className="grain-overlay" />
           <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route

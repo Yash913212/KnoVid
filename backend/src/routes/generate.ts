@@ -125,6 +125,50 @@ router.post("/chat/:videoId", authMiddleware, async (req: AuthRequest, res: Resp
   }
 });
 
+router.post("/fuse/:videoId", authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const { a, b } = req.body;
+    if (!a || !b) {
+      res.status(400).json({ error: "a and b concept labels are required" });
+      return;
+    }
+
+    const video = await Video.findOne({ _id: req.params.videoId, owner: req.userId });
+    if (!video) {
+      res.status(404).json({ error: "Video not found" });
+      return;
+    }
+
+    const transcript = await Transcript.findOne({ videoId: req.params.videoId });
+    if (!transcript) {
+      res.status(400).json({ error: "Transcript not available" });
+      return;
+    }
+
+    const resp = await fetch(`${config.processingServiceUrl}/fuse`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        videoId: req.params.videoId,
+        segments: transcript.segments,
+        a,
+        b,
+      }),
+    });
+
+    if (!resp.ok) {
+      const errText = await resp.text();
+      throw new Error(`Fuse service returned ${resp.status}: ${errText}`);
+    }
+
+    const result = await resp.json();
+    res.json(result);
+  } catch (err: any) {
+    console.error("Fuse error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get("/export/:videoId/:format", authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const video = await Video.findOne({ _id: req.params.videoId, owner: req.userId });

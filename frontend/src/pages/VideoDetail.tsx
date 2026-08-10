@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useCallback, useEffect, lazy, Suspense, Fragment } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
-import { Maximize2, Minimize2 } from 'lucide-react'
+import { BrainCircuit, Check, Eye, Maximize2, Minimize2, RotateCcw, Sparkles } from 'lucide-react'
 import { useFetch } from '../hooks/useFetch'
 import { getVideo, retryVideo, isProcessing, type Video } from '../api/videos'
 import { getTranscript, type Transcript, type Segment } from '../api/transcripts'
@@ -15,7 +15,7 @@ import {
 } from '../api/generate'
 import { formatTime } from '../utils'
 import { getResume, setResume, clearResume } from '../lib/resume'
-import { contentStream, staggerContainer, staggerItem, materialize, chatBubble, transitions, tw, usePrefersReducedMotion } from '../lib/motion'
+import { contentStream, staggerContainer, staggerItem, materialize, chatBubble, transitions, tw, usePrefersReducedMotion, useStaggeredScrollAnimation } from '../lib/motion'
 import { useToast } from '../components/Toast'
 import VideoPlayer, { type VideoPlayerHandle } from '../components/VideoPlayer'
 const TopicTree = lazy(() => import('../components/TopicTree'))
@@ -82,7 +82,7 @@ const ENTITY_ICONS: Record<string, string> = {
   PRODUCT: '📦', EVENT: '📅', WORK_OF_ART: '🎨', LAW: '⚖️',
 }
 
-type MainTab = 'transcript' | 'graph' | 'generate'
+type MainTab = 'transcript' | 'graph' | 'generate' | 'recall'
 type GraphView = 'neural' | 'tree' | 'network' | 'list'
 
 function vttTime(seconds: number): string {
@@ -193,6 +193,22 @@ export default function VideoDetail() {
     () => (translatedSegments && targetLang ? translatedSegments : transcript?.segments ?? []),
     [translatedSegments, transcript, targetLang]
   )
+
+  // Recall is built from the transcript itself: every prompt remains tied to
+  // a timestamp, so practice can always return to the source evidence.
+  const recallCards = useMemo(() => {
+    const useful = displaySegments.filter((segment) => segment.text.trim().length > 55)
+    return (useful.length > 0 ? useful : displaySegments).slice(0, 8)
+  }, [displaySegments])
+  const [recallIndex, setRecallIndex] = useState(0)
+  const [recallRevealed, setRecallRevealed] = useState(false)
+  const [recallRemembered, setRecallRemembered] = useState(0)
+
+  useEffect(() => {
+    setRecallIndex(0)
+    setRecallRevealed(false)
+    setRecallRemembered(0)
+  }, [id, targetLang])
 
   const displayNodes: GraphNode[] = useMemo(() => {
     if (!graph) return []
@@ -343,7 +359,7 @@ export default function VideoDetail() {
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-[#FAFAFA] dark:bg-[#0A0A0A]">
-      <main className="mx-auto max-w-5xl px-4 py-8">
+      <main className="mx-auto w-full max-w-7xl px-4 py-8">
         {/* ── Back → workspace breadcrumb ───────────────────────── */}
         <motion.button
           onClick={() => navigate('/')}
@@ -440,7 +456,6 @@ export default function VideoDetail() {
             status={video.status}
             onRetry={handleRetry}
             retrying={retrying}
-            errorMessage={video.errorMessage}
             duration={video.duration}
           />
         </motion.div>
@@ -452,6 +467,9 @@ export default function VideoDetail() {
             Knowledge Graph {graph ? `(${graph.nodes.length})` : ''}
           </TabBtn>
           <TabBtn active={mainTab === 'generate'} onClick={() => setMainTab('generate')} disabled={!transcript}>AI Chat</TabBtn>
+          <TabBtn active={mainTab === 'recall'} onClick={() => setMainTab('recall')} disabled={!transcript || recallCards.length === 0}>
+            Recall Loop
+          </TabBtn>
         </div>
 
         {/* ── Output ────────────────────────────────────────────── */}
@@ -572,81 +590,93 @@ export default function VideoDetail() {
                       className={`rounded-2xl border p-2 space-y-2 overflow-y-auto ${tw.surface}`}
                     >
                       {(() => {
+                        const { ref: scrollRef, visibleItems: visibleGroups } = useStaggeredScrollAnimation(groups.length)
                         let flatIdx = 0
-                        return groups.map((group, gi) => {
-                          const accent = getSpeakerColor(group.speaker).accent
-                          return (
-                            <div
-                              key={gi}
-                              className="relative overflow-hidden rounded-xl border border-white/70 bg-white/60 dark:border-white/10 dark:bg-stone-900/40"
-                            >
-                              <motion.span
-                                className="absolute bottom-0 left-0 top-0 w-1 rounded-r-full shadow-[0_0_12px_var(--seg-accent)]"
-                                style={{ background: accent, transformOrigin: 'top', ['--seg-accent' as string]: accent }}
-                                initial={{ scaleY: 0 }}
-                                animate={{ scaleY: 1 }}
-                                transition={{ ...transitions.content, delay: gi * 0.05 }}
-                              />
-                              <div className="flex items-center gap-2 border-b border-stone-200/70 px-4 py-2 bg-white/60 dark:border-white/10 dark:bg-stone-900/50">
-                                <motion.span
-                                  className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold shadow-sm ${getSpeakerColor(group.speaker).tag}`}
-                                  initial={{ opacity: 0, x: -4 }}
-                                  animate={{ opacity: 1, x: 0 }}
-                                  transition={transitions.contentIn}
+                        return (
+                          <div ref={scrollRef}>
+                            {groups.map((group, gi) => {
+                              const accent = getSpeakerColor(group.speaker).accent
+                              const isVisible = visibleGroups.has(gi)
+                              return (
+                                <motion.div
+                                  key={gi}
+                                  initial={{ opacity: 0, y: 20 }}
+                                  animate={isVisible ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+                                  transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1], delay: gi * 0.05 }}
+                                  className="relative overflow-hidden rounded-xl border border-white/70 bg-white/60 dark:border-white/10 dark:bg-stone-900/40"
                                 >
-                                  <span className="h-2 w-0.5 rounded-full" style={{ background: accent }} />
-                                  {group.speaker}
-                                </motion.span>
-                                <span className="text-xs text-gray-400 dark:text-stone-500">{group.segments.length} segs</span>
-                              </div>
-                              <div className="p-1.5">
-                                {group.segments.map((seg) => {
-                                  const idx = flatIdx++
-                                  const active = idx === activeSegmentIdx
-                                  return (
-                                    <div
-                                      key={idx}
-                                      ref={(el) => {
-                                        if (el) segmentEls.current.set(idx, el)
-                                        else segmentEls.current.delete(idx)
-                                      }}
-                                      data-active={active}
-                                      role="button"
-                                      tabIndex={0}
-                                      aria-label={`Play from ${formatTime(seg.start)}`}
-                                      onClick={() => handleSeek(seg.start)}
-                                      onKeyDown={(e) => {
-                                        if (e.key === 'Enter' || e.key === ' ') {
-                                          e.preventDefault()
-                                          handleSeek(seg.start)
-                                        }
-                                      }}
-                                      className={`seg-row group flex cursor-pointer items-start gap-3 rounded-lg px-3 py-2.5 transition-all duration-200 ease-out ${active ? 'active transcript-active' : 'hover:bg-white/80 dark:hover:bg-stone-800/50'}`}
-                                      style={{ ['--seg-accent' as string]: accent } as React.CSSProperties}
+                                  <motion.span
+                                    className="absolute bottom-0 left-0 top-0 w-1 rounded-r-full shadow-[0_0_12px_var(--seg-accent)]"
+                                    style={{ background: accent, transformOrigin: 'top', ['--seg-accent' as string]: accent }}
+                                    initial={{ scaleY: 0 }}
+                                    animate={{ scaleY: 1 }}
+                                    transition={{ ...transitions.content, delay: gi * 0.05 }}
+                                  />
+                                  <div className="flex items-center gap-2 border-b border-stone-200/70 px-4 py-2 bg-white/60 dark:border-white/10 dark:bg-stone-900/50">
+                                    <motion.span
+                                      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold shadow-sm ${getSpeakerColor(group.speaker).tag}`}
+                                      initial={{ opacity: 0, x: -4 }}
+                                      animate={{ opacity: 1, x: 0 }}
+                                      transition={transitions.contentIn}
                                     >
-                                      <span className="seg-bar" />
-                                      <span
-                                        className={`mt-0.5 shrink-0 rounded-md border px-1.5 py-0.5 whitespace-nowrap font-mono text-[11px] backdrop-blur-sm ${active ? 'font-bold border-[#FF6B35]/40 bg-[#FF6B35]/10 text-[#EA580C] dark:border-[#D946EF]/40 dark:bg-[#D946EF]/10 dark:text-[#FF8A5C]' : 'border-transparent text-gray-400 dark:text-stone-500'} group-hover:border-[#FF6B35]/30 group-hover:text-[#C2410C] dark:group-hover:text-[#FF8A5C]`}
-                                      >
-                                        {formatTime(seg.start)}
-                                      </span>
-                                      <p className={`flex-1 text-sm leading-relaxed ${active ? 'text-[#9A3412] dark:text-[#FFE4D6]' : 'text-gray-800 dark:text-stone-200'}`}>{seg.text}</p>
-                                      <span className="mt-0.5 shrink-0 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
-                                        <span
-                                          className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold text-white shadow-[0_0_12px_rgb(217_70_239/0.5)]"
-                                          style={{ background: accent }}
+                                      <span className="h-2 w-0.5 rounded-full" style={{ background: accent }} />
+                                      {group.speaker}
+                                    </motion.span>
+                                    <span className="text-xs text-gray-400 dark:text-stone-500">{group.segments.length} segs</span>
+                                  </div>
+                                  <div className="p-1.5">
+                                    {group.segments.map((seg) => {
+                                      const idx = flatIdx++
+                                      const active = idx === activeSegmentIdx
+                                      return (
+                                        <motion.div
+                                          key={idx}
+                                          ref={(el) => {
+                                            if (el) segmentEls.current.set(idx, el)
+                                            else segmentEls.current.delete(idx)
+                                          }}
+                                          data-active={active}
+                                          role="button"
+                                          tabIndex={0}
+                                          aria-label={`Play from ${formatTime(seg.start)}`}
+                                          onClick={() => handleSeek(seg.start)}
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter' || e.key === ' ') {
+                                              e.preventDefault()
+                                              handleSeek(seg.start)
+                                            }
+                                          }}
+                                          initial={{ opacity: 0, x: -10 }}
+                                          animate={{ opacity: 1, x: 0 }}
+                                          transition={{ duration: 0.2, delay: gi * 0.05 + (idx % group.segments.length) * 0.02 }}
+                                          className={`seg-row group flex cursor-pointer items-start gap-3 rounded-lg px-3 py-2.5 transition-all duration-200 ease-out ${active ? 'active transcript-active' : 'hover:bg-white/80 dark:hover:bg-stone-800/50'}`}
+                                          style={{ ['--seg-accent' as string]: accent } as React.CSSProperties}
                                         >
-                                          <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86a1 1 0 0 0-1.5.86z" /></svg>
-                                          Play from here
-                                        </span>
-                                      </span>
-                                    </div>
-                                  )
-                                })}
-                              </div>
-                            </div>
-                          )
-                        })
+                                          <span className="seg-bar" />
+                                          <span
+                                            className={`mt-0.5 shrink-0 rounded-md border px-1.5 py-0.5 whitespace-nowrap font-mono text-[11px] backdrop-blur-sm ${active ? 'font-bold border-[#FF6B35]/40 bg-[#FF6B35]/10 text-[#EA580C] dark:border-[#D946EF]/40 dark:bg-[#D946EF]/10 dark:text-[#FF8A5C]' : 'border-transparent text-gray-400 dark:text-stone-500'} group-hover:border-[#FF6B35]/30 group-hover:text-[#C2410C] dark:group-hover:text-[#FF8A5C]`}
+                                          >
+                                            {formatTime(seg.start)}
+                                          </span>
+                                          <p className={`flex-1 text-sm leading-relaxed ${active ? 'text-[#9A3412] dark:text-[#FFE4D6]' : 'text-gray-800 dark:text-stone-200'}`}>{seg.text}</p>
+                                          <span className="mt-0.5 shrink-0 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+                                            <span
+                                              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold text-white shadow-[0_0_12px_rgb(217_70_239/0.5)]"
+                                              style={{ background: accent }}
+                                            >
+                                              <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86a1 1 0 0 0-1.5.86z" /></svg>
+                                              Play from here
+                                            </span>
+                                          </span>
+                                        </motion.div>
+                                      )
+                                    })}
+                                  </div>
+                                </motion.div>
+                              )
+                            })}
+                          </div>
+                        )
                       })()}
                     </div>
                   )}
@@ -683,6 +713,7 @@ export default function VideoDetail() {
                             {graphView === 'neural' ? (
                               <Suspense fallback={<GraphFallback />}>
                                 <NeuralBreakout
+                                  videoId={id!}
                                   nodes={displayNodes}
                                   edges={graph.edges}
                                   segments={displaySegments}
@@ -702,7 +733,7 @@ export default function VideoDetail() {
                                 </div>
                               </Suspense>
                             ) : (
-                              <div className="mx-auto max-w-5xl space-y-8">
+                              <div className="mx-auto max-w-7xl space-y-8">
                                 {topics.length > 0 && (
                                   <section>
                                     <h3 className="mb-3 font-semibold text-stone-800 dark:text-stone-200">Topics</h3>
@@ -764,11 +795,141 @@ export default function VideoDetail() {
               )}
 
               {mainTab === 'generate' && <GeneratePanel videoId={id!} />}
+
+              {mainTab === 'recall' && recallCards.length > 0 && (
+                <RecallPanel
+                  videoTitle={video.originalName}
+                  cards={recallCards}
+                  index={recallIndex}
+                  revealed={recallRevealed}
+                  remembered={recallRemembered}
+                  onReveal={() => setRecallRevealed(true)}
+                  onRemember={() => {
+                    setRecallRemembered((count) => count + 1)
+                    setRecallRevealed(false)
+                    setRecallIndex((current) => (current + 1) % recallCards.length)
+                  }}
+                  onReset={() => {
+                    setRecallIndex(0)
+                    setRecallRemembered(0)
+                    setRecallRevealed(false)
+                  }}
+                  onSeek={handleSeek}
+                />
+              )}
             </motion.div>
           </AnimatePresence>
         </div>
       </main>
     </div>
+  )
+}
+
+function RecallPanel({
+  videoTitle,
+  cards,
+  index,
+  revealed,
+  remembered,
+  onReveal,
+  onRemember,
+  onReset,
+  onSeek,
+}: {
+  videoTitle: string
+  cards: Segment[]
+  index: number
+  revealed: boolean
+  remembered: number
+  onReveal: () => void
+  onRemember: () => void
+  onReset: () => void
+  onSeek: (seconds: number) => void
+}) {
+  const card = cards[index]
+  const progress = Math.min(100, Math.round((remembered / cards.length) * 100))
+  const speaker = card.speaker || 'Speaker'
+
+  return (
+    <section className="overflow-hidden rounded-[2rem] border border-[#D946EF]/20 bg-stone-950 text-white shadow-[0_30px_90px_rgb(217_70_239/0.15)]">
+      <div className="relative overflow-hidden px-5 py-6 sm:px-8 sm:py-8">
+        <div className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-[#D946EF]/20 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-28 left-1/4 h-64 w-64 rounded-full bg-[#FF6B35]/15 blur-3xl" />
+        <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-xl">
+            <div className="flex items-center gap-2 text-[#FFB58C]">
+              <span className="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-br from-[#FF6B35] to-[#D946EF] shadow-[0_0_22px_rgb(217_70_239/0.45)]">
+                <BrainCircuit size={17} />
+              </span>
+              <span className="font-mono text-[10px] font-medium uppercase tracking-[0.24em]">KnoVid Recall Loop</span>
+            </div>
+            <h2 className="font-display mt-4 text-2xl font-black tracking-tight sm:text-3xl">Remember it before you reread it.</h2>
+            <p className="mt-2 text-sm leading-6 text-stone-400">
+              A quick retrieval pass over the moments that shaped this video. Every answer stays anchored to the speaker and timestamp.
+            </p>
+          </div>
+          <div className="min-w-[12rem] rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-xl">
+            <div className="flex items-center justify-between text-xs text-stone-400">
+              <span>Memory pass</span>
+              <span className="font-mono text-[#FFB58C]">{remembered}/{cards.length}</span>
+            </div>
+            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10">
+              <motion.div className="h-full rounded-full bg-gradient-to-r from-[#FF6B35] to-[#D946EF]" animate={{ width: `${progress}%` }} />
+            </div>
+            <p className="mt-2 text-[11px] text-stone-500">Source: {videoTitle}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="border-t border-white/10 bg-black/20 p-5 sm:p-8">
+        <div className="mx-auto max-w-2xl">
+          <div className="mb-5 flex items-center justify-between gap-3">
+            <span className="rounded-full border border-[#FF6B35]/30 bg-[#FF6B35]/10 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.16em] text-[#FFB58C]">
+              Prompt {index + 1}
+            </span>
+            <button type="button" onClick={() => onSeek(card.start)} className="inline-flex items-center gap-1.5 text-xs text-stone-400 transition-colors hover:text-white">
+              <Eye size={14} /> Revisit {formatTime(card.start)}
+            </button>
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-white/[0.045] p-5 sm:p-7">
+            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#E879F9]">{speaker} · {formatTime(card.start)}</p>
+            <h3 className="mt-3 font-display text-xl font-bold leading-snug sm:text-2xl">
+              What is the core idea in this moment?
+            </h3>
+            <AnimatePresence mode="wait">
+              {revealed ? (
+                <motion.div key="answer" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="mt-5 rounded-2xl border border-[#D946EF]/25 bg-[#D946EF]/[0.08] p-4">
+                  <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-[#E879F9]"><Sparkles size={14} /> Source answer</div>
+                  <p className="text-sm leading-7 text-stone-200">{card.text}</p>
+                </motion.div>
+              ) : (
+                <motion.p key="hint" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4 text-sm leading-6 text-stone-500">
+                  Say it in your own words, then reveal the source moment.
+                </motion.p>
+              )}
+            </AnimatePresence>
+          </div>
+
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+            <button type="button" onClick={onReset} className="inline-flex items-center gap-2 text-xs text-stone-500 transition-colors hover:text-stone-200">
+              <RotateCcw size={14} /> Reset pass
+            </button>
+            <div className="flex gap-2">
+              {!revealed ? (
+                <button type="button" onClick={onReveal} className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.08] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/[0.14]">
+                  Reveal source <Eye size={15} />
+                </button>
+              ) : (
+                <button type="button" onClick={onRemember} className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#FF6B35] to-[#D946EF] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_30px_rgb(217_70_239/0.35)] transition-transform hover:-translate-y-0.5">
+                  I remembered it <Check size={15} />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
   )
 }
 
@@ -788,7 +949,8 @@ const STATUS_STEP: Record<string, number> = {
   downloading: 0,
   processing: 1,
   analyzing: 3,
-  done: 4,
+  summarizing: 4,
+  done: 5,
   failed: 1,
 }
 
@@ -798,13 +960,11 @@ function PipelineStepper({
   status,
   onRetry,
   retrying,
-  errorMessage,
   duration,
 }: {
   status: Video['status']
   onRetry: () => void
   retrying: boolean
-  errorMessage?: string
   duration: number
 }) {
   const failed = status === 'failed'
@@ -872,7 +1032,7 @@ function PipelineStepper({
               <circle cx="12" cy="12" r="10" />
               <path d="M12 7.5v6M12 16.5v.5" strokeLinecap="round" />
             </svg>
-            <span className="min-w-0 flex-1 text-red-700 dark:text-red-300">{errorMessage || 'Processing failed'}</span>
+            <span className="rounded-full border border-red-500/20 bg-red-500/10 px-2 py-0.5 text-xs text-red-400">Processing failed</span>
             <button
               type="button"
               onClick={onRetry}
@@ -901,7 +1061,7 @@ function StepNode({ state, index, label }: { state: StepState; index: number; la
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7" /></svg>
         </motion.span>
-        <span className="hidden text-xs font-semibold text-[#EA580C] sm:block dark:text-[#FF8A5C]">{label}</span>
+        <span className="hidden text-xs font-semibold text-[#FF6B35] sm:block">{label}</span>
       </span>
     )
   }
@@ -917,7 +1077,7 @@ function StepNode({ state, index, label }: { state: StepState; index: number; la
           />
         </span>
         <motion.span
-          className="hidden text-xs font-semibold text-[#EA580C] sm:block dark:text-[#FF8A5C]"
+          className="hidden animate-pulse text-xs font-semibold text-[#D946EF] sm:block"
           animate={reduced ? {} : { opacity: [1, 0.55, 1] }}
           transition={{ repeat: Infinity, duration: 1.6, ease: 'easeInOut' }}
         >
@@ -990,21 +1150,21 @@ function Chip({ tone = 'default', children }: { tone?: 'default' | 'tangerine' |
 function WorkspaceSkeleton() {
   return (
     <div className="min-h-screen bg-[#FAFAFA] dark:bg-[#0A0A0A]">
-      <main className="mx-auto max-w-5xl px-4 py-8" aria-hidden="true">
-        <div className="aspect-video rounded-3xl skeleton-shimmer" />
-        <div className="mt-5 h-8 w-72 rounded skeleton-shimmer" />
-        <div className="mt-4 h-28 rounded-3xl skeleton-shimmer" />
+      <main className="mx-auto w-full max-w-7xl px-4 py-8" aria-hidden="true">
+        <div className="aspect-video rounded-3xl skeleton-shimmer-brand" />
+        <div className="mt-5 h-8 w-72 rounded skeleton-shimmer-brand" />
+        <div className="mt-4 h-28 rounded-3xl skeleton-shimmer-brand" />
         <div className="mt-6 flex gap-2">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="h-10 w-28 rounded-xl skeleton-shimmer" />
+            <div key={i} className="h-10 w-28 rounded-xl skeleton-shimmer-brand" />
           ))}
         </div>
         <div className="mt-6 space-y-3">
           {[1, 2, 3, 4, 5].map((i) => (
             <div key={i} className="rounded-2xl border border-black/10 bg-white/70 p-4 dark:border-white/10 dark:bg-white/[0.03]">
-              <div className="mb-2 h-3 w-16 rounded skeleton-shimmer" />
-              <div className={`h-3 rounded skeleton-shimmer ${i % 3 === 0 ? 'w-3/4' : i % 3 === 1 ? 'w-full' : 'w-5/6'}`} />
-              <div className={`mt-2 h-3 rounded skeleton-shimmer ${i % 2 === 0 ? 'w-11/12' : 'w-2/3'}`} />
+              <div className="mb-2 h-3 w-16 rounded skeleton-shimmer-brand" />
+              <div className={`h-3 rounded skeleton-shimmer-brand ${i % 3 === 0 ? 'w-3/4' : i % 3 === 1 ? 'w-full' : 'w-5/6'}`} />
+              <div className={`mt-2 h-3 rounded skeleton-shimmer-brand ${i % 2 === 0 ? 'w-11/12' : 'w-2/3'}`} />
             </div>
           ))}
         </div>
@@ -1019,11 +1179,11 @@ function OutputSkeleton({ lines = 5 }: { lines?: number }) {
       {Array.from({ length: lines }).map((_, i) => (
         <div key={i} className="rounded-2xl border border-black/10 bg-white/70 p-4 dark:border-white/10 dark:bg-white/[0.03]">
           <div className="mb-2 flex items-center gap-2">
-            <div className="h-4 w-14 rounded-full skeleton-shimmer" />
-            <div className="h-3 w-20 rounded skeleton-shimmer" />
+            <div className="h-4 w-14 rounded-full skeleton-shimmer-brand" />
+            <div className="h-3 w-20 rounded skeleton-shimmer-brand" />
           </div>
-          <div className={`h-3 rounded skeleton-shimmer ${i % 3 === 0 ? 'w-3/4' : i % 3 === 1 ? 'w-full' : 'w-5/6'}`} />
-          <div className={`mt-2 h-3 rounded skeleton-shimmer ${i % 2 === 0 ? 'w-11/12' : 'w-2/3'}`} />
+          <div className={`h-3 rounded skeleton-shimmer-brand ${i % 3 === 0 ? 'w-3/4' : i % 3 === 1 ? 'w-full' : 'w-5/6'}`} />
+          <div className={`mt-2 h-3 rounded skeleton-shimmer-brand ${i % 2 === 0 ? 'w-11/12' : 'w-2/3'}`} />
         </div>
       ))}
     </div>
@@ -1065,6 +1225,7 @@ const STATUS_DOT_COLORS: Record<string, string> = {
   downloading: 'bg-amber-400',
   processing: 'bg-orange-400',
   analyzing: 'bg-rose-400',
+  summarizing: 'bg-fuchsia-400',
   done: 'bg-[#FF6B35]',
   failed: 'bg-red-400',
 }
@@ -1338,14 +1499,21 @@ function TabBtn({ active, onClick, children, disabled = false }: { active: boole
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`rounded-xl px-4 py-2 text-sm font-semibold transition-all duration-200 ease-out ${
+      className={`relative rounded-xl px-4 py-2 text-sm font-semibold transition-all duration-200 ease-out ${
         disabled
           ? 'cursor-not-allowed text-stone-300 dark:text-stone-600'
           : active
-            ? 'bg-gradient-to-r from-[#FF6B35] to-[#D946EF] text-white shadow-[0_6px_20px_rgb(217_70_239/0.35)]'
+            ? 'text-white'
             : 'text-stone-500 hover:bg-white/80 hover:text-stone-800 dark:text-stone-400 dark:hover:bg-stone-800/70 dark:hover:text-stone-100'
       }`}
     >
+      {active && (
+        <motion.span
+          layoutId="main-tab-pill"
+          className="absolute inset-0 -z-10 rounded-xl bg-gradient-to-r from-[#FF6B35] to-[#D946EF] shadow-[0_6px_20px_rgb(217_70_239/0.35)]"
+          transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+        />
+      )}
       {children}
     </button>
   )
@@ -1355,12 +1523,19 @@ function ViewBtn({ active, onClick, children }: { active: boolean; onClick: () =
   return (
     <button
       onClick={onClick}
-      className={`rounded-xl px-3 py-1.5 text-sm font-medium transition-all duration-200 ease-out ${
+      className={`relative rounded-xl px-3 py-1.5 text-sm font-medium transition-all duration-200 ease-out ${
         active
-          ? 'bg-gradient-to-r from-[#FF6B35] to-[#D946EF] text-white shadow-[0_4px_16px_rgb(217_70_239/0.3)]'
+          ? 'text-white'
           : 'text-stone-500 hover:bg-white/80 hover:text-stone-800 dark:text-stone-400 dark:hover:bg-stone-800/70 dark:hover:text-stone-100'
       }`}
     >
+      {active && (
+        <motion.span
+          layoutId="graph-view-pill"
+          className="absolute inset-0 -z-10 rounded-xl bg-gradient-to-r from-[#FF6B35] to-[#D946EF] shadow-[0_4px_16px_rgb(217_70_239/0.3)]"
+          transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+        />
+      )}
       {children}
     </button>
   )
@@ -1369,11 +1544,13 @@ function ViewBtn({ active, onClick, children }: { active: boolean; onClick: () =
 // Immersive knowledge-graph canvas that breaks out of the container and can
 // expand edge-to-edge fullscreen with a spring layout animation.
 function NeuralBreakout({
+  videoId,
   nodes,
   edges,
   segments,
   onSeek,
 }: {
+  videoId: string
   nodes?: GraphNode[]
   edges?: { source: string; target: string; weight?: number }[]
   segments?: Segment[]
@@ -1398,7 +1575,7 @@ function NeuralBreakout({
       }`}
       style={{ height: fullscreen ? '100dvh' : 'calc(100dvh - 8rem)' }}
     >
-      <NeuralNavigator nodes={nodes} edges={edges} segments={segments} onSeek={onSeek} />
+      <NeuralNavigator videoId={videoId} nodes={nodes} edges={edges} segments={segments} onSeek={onSeek} />
 
       <button
         type="button"

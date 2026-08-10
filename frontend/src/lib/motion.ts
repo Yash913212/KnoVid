@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Transition } from 'motion/react'
 
 // ─── Duration tokens ──────────────────────────────────────────────
@@ -161,7 +161,7 @@ export const softPulse = {
 export const pageShell = {
   initial: { opacity: 0, y: 6 },
   animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -4 },
+  exit: { opacity: 0, y: -6, transition: { duration: 0.2, ease: [0.42, 0, 1, 1] } },
 }
 
 // ─── Tailwind utility strings for simple states ─────────────────
@@ -220,4 +220,77 @@ export function usePrefersReducedMotion(): boolean {
   }, [])
 
   return reduced
+}
+
+// ─── Scroll-triggered animations ────────────────────────────────────
+
+interface ScrollAnimationOptions {
+  threshold?: number
+  rootMargin?: string
+  triggerOnce?: boolean
+}
+
+export function useScrollAnimation(options: ScrollAnimationOptions = {}) {
+  const { threshold = 0.1, rootMargin = '0px 0px -50px 0px', triggerOnce = true } = options
+  const [isVisible, setIsVisible] = useState(false)
+  const elementRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const element = elementRef.current
+    if (!element) return
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true)
+          if (triggerOnce) {
+            observer.unobserve(element)
+          }
+        } else if (!triggerOnce) {
+          setIsVisible(false)
+        }
+      },
+      { threshold, rootMargin }
+    )
+
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [threshold, rootMargin, triggerOnce])
+
+  return { ref: elementRef, isVisible }
+}
+
+export function useStaggeredScrollAnimation(itemCount: number, options: ScrollAnimationOptions = {}) {
+  const { threshold = 0.1, rootMargin = '0px 0px -50px 0px', triggerOnce = true } = options
+  const [visibleItems, setVisibleItems] = useState<Set<number>>(new Set())
+  const elementRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const element = elementRef.current
+    if (!element) return
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          // Stagger the visibility of items
+          for (let i = 0; i < itemCount; i++) {
+            setTimeout(() => {
+              setVisibleItems(prev => new Set([...prev, i]))
+            }, i * 50)
+          }
+          if (triggerOnce) {
+            observer.unobserve(element)
+          }
+        } else if (!triggerOnce) {
+          setVisibleItems(new Set())
+        }
+      },
+      { threshold, rootMargin }
+    )
+
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [itemCount, threshold, rootMargin, triggerOnce])
+
+  return { ref: elementRef, visibleItems }
 }

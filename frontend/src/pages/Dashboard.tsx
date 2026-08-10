@@ -8,6 +8,7 @@ import {
 } from '../api/videos'
 import { fadeUpLift, scaleFade, tw, staggerContainer, staggerItem, transitions } from '../lib/motion'
 import { useToast } from '../components/Toast'
+import Magnetic from '../components/Magnetic'
 import { formatTime } from '../utils'
 import { getResume } from '../lib/resume'
 import { FileText, Sparkles } from 'lucide-react'
@@ -52,40 +53,6 @@ const PIPELINE = [
 ]
 
 type FlowState = 'idle' | 'active' | 'done'
-
-// ─── Mock "completed" universes ─────────────────────────────────────
-// Injected ahead of real videos so the dashboard instantly shows the
-// end-state: Transcribe → Graph → AI Summary cards.
-const MOCK_SUCCESS_VIDEOS: Video[] = [
-  {
-    _id: 'mock-1',
-    source: 'url',
-    originalName: 'Attention Is All You Need — Transformer Architecture',
-    url: 'https://youtube.com/mock1',
-    thumbnail: 'https://images.unsplash.com/photo-1620712940408-6d0e7c0975e5?w=500&q=80',
-    duration: 2684,
-    status: 'done',
-    createdAt: new Date().toISOString(),
-  },
-  {
-    _id: 'mock-2',
-    source: 'url',
-    originalName: 'Stanford CS229 — Machine Learning Lecture 2',
-    thumbnail: 'https://images.unsplash.com/photo-1551288218-87f3a0c46f42?w=500&q=80',
-    duration: 5421,
-    status: 'done',
-    createdAt: new Date().toISOString(),
-  },
-  {
-    _id: 'mock-3',
-    source: 'url',
-    originalName: 'The Mathematics of Neural Networks',
-    thumbnail: 'https://images.unsplash.com/photo-1635075647321-1f6d40e11e86?w=500&q=80',
-    duration: 3102,
-    status: 'done',
-    createdAt: new Date().toISOString(),
-  },
-]
 
 // Derive the 4-stage pipeline state from the furthest-along live import.
 // Statuses: queued(0) → downloading(1) → transcribing(2) → analyzing(3) → done(4).
@@ -290,8 +257,7 @@ export default function Dashboard() {
 
   const activeVideos = videos.filter((v) => isProcessing(v.status))
   const doneVideos = videos.filter((v) => v.status === 'done' || v.status === 'failed')
-  const realLibraryVideos = doneVideos.filter((v) => v.originalName.toLowerCase().includes(query.trim().toLowerCase()))
-  const displayVideos = [...MOCK_SUCCESS_VIDEOS, ...realLibraryVideos]
+  const displayVideos = doneVideos.filter((v) => v.originalName.toLowerCase().includes(query.trim().toLowerCase()))
   const isEmpty = !loading && videos.length === 0
   const noSuccessful = !loading && !doneVideos.some((v) => v.status === 'done')
 
@@ -476,7 +442,7 @@ export default function Dashboard() {
                 >
                   <AnimatePresence mode="popLayout">
                     {displayVideos.map((v) => (
-                      <KnowledgeCard key={v._id} video={v} onClick={() => navigate(`/video/${v._id}`)} onRetry={handleRetry} isMock={v._id.startsWith('mock-')} />
+                      <KnowledgeCard key={v._id} video={v} onClick={() => navigate(`/video/${v._id}`)} onRetry={handleRetry} />
                     ))}
                   </AnimatePresence>
                 </motion.div>
@@ -532,14 +498,16 @@ function OnboardingHero({ onSummon, onHow }: { onSummon: () => void; onHow: () =
         transition={{ ...transitions.contentIn, delay: 0.65 }}
         className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row"
       >
-        <button
-          type="button"
-          onClick={onSummon}
-          className="sheen-button inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#FF6B35] to-[#D946EF] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_12px_36px_rgb(217 70 239/0.5)] transition-transform duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_18px_50px_rgb(217 70 239/0.65)] active:scale-[0.97]"
-        >
-          <IconSparkles className="h-4 w-4" />
-          Summon knowledge
-        </button>
+        <Magnetic strength={0.25}>
+          <button
+            type="button"
+            onClick={onSummon}
+            className="sheen-button inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#FF6B35] to-[#D946EF] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_12px_36px_rgb(217 70 239/0.5)] transition-transform duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_18px_50px_rgb(217 70 239/0.65)] active:scale-[0.97]"
+          >
+            <IconSparkles className="h-4 w-4" />
+            Summon knowledge
+          </button>
+        </Magnetic>
         <button
           type="button"
           onClick={onHow}
@@ -805,14 +773,16 @@ function MagicUploadPortal(props: PortalProps) {
                   onKeyDown={(e) => e.key === 'Enter' && onTransmute()}
                 />
               </div>
-              <button
-                type="button"
-                onClick={onTransmute}
-                disabled={!url.trim() || busy}
-                className="sheen-button rounded-xl bg-gradient-to-r from-[#FF6B35] via-[#FF8A5C] to-[#D946EF] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_30px_rgb(217 70 239/0.45)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_16px_44px_rgb(217 70 239/0.6)] active:scale-[0.97] disabled:opacity-40 disabled:shadow-none disabled:hover:translate-y-0"
-              >
-                Transmute
-              </button>
+        <Magnetic strength={0.25}>
+          <button
+            type="button"
+            onClick={onTransmute}
+            disabled={!url.trim() || busy}
+            className="sheen-button rounded-full bg-gradient-to-r from-[#FF6B35] to-[#D946EF] px-5 py-2.5 text-sm font-bold text-white shadow-lg transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_0_25px_5px_rgba(255,107,53,0.4)] active:scale-[0.97] disabled:opacity-40 disabled:shadow-none disabled:hover:translate-y-0"
+          >
+            Transmute
+          </button>
+        </Magnetic>
             </div>
             <p className="mt-2 text-center text-xs text-stone-500 dark:text-stone-500">
               Supports 1,300+ sites via yt-dlp · direct files up to 2GB (MP4, MOV, AVI, WebM)
@@ -933,7 +903,7 @@ function ValuePipeline({ flowStates, heading }: { flowStates: FlowState[]; headi
               key={step.label}
               variants={staggerItem(fadeUpLift)}
               whileHover={{ y: -4 }}
-              className={`group relative overflow-hidden rounded-2xl border p-4 backdrop-blur-xl transition-shadow duration-300 ${
+              className={`group shine-card relative overflow-hidden rounded-2xl border p-4 backdrop-blur-xl transition-shadow duration-300 ${
                 state === 'active'
                   ? 'border-[#FF6B35]/60 bg-white/70 shadow-[0_0_30px_rgb(255 107 53/0.18)] dark:border-[#D946EF]/40 dark:bg-white/[0.05]'
                   : state === 'done'
@@ -1049,18 +1019,13 @@ const PROGRESS_BY_STATUS: Record<VideoStatus, number> = {
   failed: 0,
 }
 
-function KnowledgeCard({ video, onClick, onRetry, isMock = false }: { video: Video; onClick: () => void; onRetry: (id: string) => void; isMock?: boolean }) {
+function KnowledgeCard({ video, onClick, onRetry }: { video: Video; onClick: () => void; onRetry: (id: string) => void }) {
   const failed = video.status === 'failed'
   const processing = isProcessing(video.status)
   const done = video.status === 'done'
   const resume = done ? getResume(video._id) : null
-  const { toast } = useToast()
 
   const open = () => {
-    if (isMock) {
-      toast('Showcase video — upload your own to explore the full experience', 'info')
-      return
-    }
     onClick()
   }
 
@@ -1076,6 +1041,20 @@ function KnowledgeCard({ video, onClick, onRetry, isMock = false }: { video: Vid
 
   const barWidth = PROGRESS_BY_STATUS[video.status]
 
+  // Cursor-tracking spotlight — the classic premium card micro-interaction.
+  const cardRef = useRef<HTMLDivElement>(null)
+  const [spot, setSpot] = useState({ x: 50, y: 50, on: false })
+  const onCardMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const el = cardRef.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    setSpot({
+      x: ((e.clientX - r.left) / r.width) * 100,
+      y: ((e.clientY - r.top) / r.height) * 100,
+      on: true,
+    })
+  }
+
   return (
     <motion.div
       variants={staggerItem(scaleFade)}
@@ -1084,6 +1063,7 @@ function KnowledgeCard({ video, onClick, onRetry, isMock = false }: { video: Vid
       className="h-full"
     >
       <motion.div
+        ref={cardRef}
         key={popCount}
         onClick={open}
         role="button"
@@ -1095,6 +1075,8 @@ function KnowledgeCard({ video, onClick, onRetry, isMock = false }: { video: Vid
             open()
           }
         }}
+        onMouseMove={onCardMove}
+        onMouseLeave={() => setSpot((s) => ({ ...s, on: false }))}
         initial={popCount > 0 ? { scale: 0.92 } : false}
         animate={{ scale: 1 }}
         transition={{ type: 'spring', stiffness: 380, damping: 15 }}
@@ -1109,6 +1091,14 @@ function KnowledgeCard({ video, onClick, onRetry, isMock = false }: { video: Vid
                 : 'border-white/10 shadow-[0_18px_60px_rgba(15,23,42,0.14)]'
         } dark:hover:shadow-[0_36px_100px_rgb(0_0_0/0.6)]`}
       >
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 z-20 rounded-3xl opacity-0 transition-opacity duration-300"
+          style={{
+            opacity: spot.on ? 1 : 0,
+            background: `radial-gradient(420px circle at ${spot.x}% ${spot.y}%, rgb(217 70 239 / 0.10), transparent 62%)`,
+          }}
+        />
         <div className="pointer-events-none absolute -inset-px z-10 rounded-3xl opacity-0 transition-opacity duration-300 group-hover:opacity-100 dark:bg-[radial-gradient(120%_80%_at_50%_0%,rgb(217 70 239/0.18),transparent_60%)]" />
 
         <div className="relative aspect-video overflow-hidden">
