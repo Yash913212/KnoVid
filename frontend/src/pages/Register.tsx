@@ -18,9 +18,9 @@ export default function Register() {
     setError('')
     try {
       await register(email, password, name)
-      navigate('/')
+      navigate('/app')
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Registration failed')
+      setError(err.message || err.response?.data?.error || 'Registration failed')
     } finally {
       setBusy(false)
     }
@@ -41,7 +41,7 @@ export default function Register() {
           Already have an account?{' '}
           <Link
             to="/login"
-            className="font-semibold text-[#EA580C] hover:text-[#C2410C] hover:underline dark:text-[#FF8A5C] dark:hover:text-[#FF6B35]"
+            className="font-semibold text-[#4555C4] hover:text-[#586BE3] hover:underline dark:text-[#B8C1FF] dark:hover:text-[#8793F2]"
           >
             Sign in
           </Link>

@@ -1,9 +1,24 @@
-import { Router, Request, Response } from "express";
-import jwt from "jsonwebtoken";
-import { User } from "../models/User.js";
-import { config } from "../config/index.js";
+import { Router, type Request, type Response } from "express";
+import { supabaseAuth } from "../config/supabase.js";
 
 const router = Router();
+
+function toUser(user: { id: string; email?: string | null; user_metadata?: Record<string, unknown> }) {
+  const name =
+    (user.user_metadata?.name as string | undefined) ||
+    (user.user_metadata?.full_name as string | undefined) ||
+    user.email?.split("@")[0] ||
+    "User";
+  return { id: user.id, email: user.email || "", name };
+}
+
+function authResponse(data: { user: any; session: { access_token: string } | null }) {
+  return {
+    token: data.session?.access_token || null,
+    user: toUser(data.user),
+    requiresEmailConfirmation: !data.session,
+  };
+}
 
 router.post("/register", async (req: Request, res: Response) => {
   try {
@@ -13,21 +28,17 @@ router.post("/register", async (req: Request, res: Response) => {
       return;
     }
 
-    const existing = await User.findOne({ email: email.toLowerCase() });
-    if (existing) {
-      res.status(409).json({ error: "Email already registered" });
+    const { data, error } = await supabaseAuth.auth.signUp({
+      email: String(email).trim().toLowerCase(),
+      password,
+      options: { data: { name: String(name).trim() } },
+    });
+    if (error) {
+      res.status(error.status === 422 ? 409 : 400).json({ error: error.message });
       return;
     }
 
-    const user = new User({ email, name });
-    user.setPassword(password);
-    await user.save();
-
-    const token = jwt.sign({ sub: user._id.toString() }, config.jwtSecret, {
-      expiresIn: "7d",
-    });
-
-    res.status(201).json({ token, user: { id: user._id, email: user.email, name: user.name } });
+    res.status(201).json(authResponse(data));
   } catch (err) {
     console.error("Register error:", err);
     res.status(500).json({ error: "Registration failed" });
@@ -42,17 +53,16 @@ router.post("/login", async (req: Request, res: Response) => {
       return;
     }
 
-    const user = await User.findOne({ email: email.toLowerCase() });
-    if (!user || !user.validatePassword(password)) {
-      res.status(401).json({ error: "Invalid credentials" });
+    const { data, error } = await supabaseAuth.auth.signInWithPassword({
+      email: String(email).trim().toLowerCase(),
+      password,
+    });
+    if (error || !data.user || !data.session) {
+      res.status(401).json({ error: error?.message || "Invalid credentials" });
       return;
     }
 
-    const token = jwt.sign({ sub: user._id.toString() }, config.jwtSecret, {
-      expiresIn: "7d",
-    });
-
-    res.json({ token, user: { id: user._id, email: user.email, name: user.name } });
+    res.json(authResponse(data));
   } catch {
     res.status(500).json({ error: "Login failed" });
   }

@@ -17,6 +17,9 @@ import { formatTime } from '../utils'
 import { getResume, setResume, clearResume } from '../lib/resume'
 import { contentStream, staggerContainer, staggerItem, materialize, chatBubble, transitions, tw, usePrefersReducedMotion, useStaggeredScrollAnimation } from '../lib/motion'
 import { useToast } from '../components/Toast'
+import { Button } from '../components/ui/Button'
+import { GlassCard } from '../components/ui/GlassCard'
+import { Eyebrow } from '../components/ui/Eyebrow'
 import VideoPlayer, { type VideoPlayerHandle } from '../components/VideoPlayer'
 const TopicTree = lazy(() => import('../components/TopicTree'))
 const KnowledgeGraph = lazy(() => import('../components/KnowledgeGraph'))
@@ -38,14 +41,14 @@ const LANGUAGES = [
 // Warm / orchid speaker ramp — distinct hues, no blue family.
 // Speaker 1 → Tangerine, Speaker 2 → Orchid, then a warm fallback ramp.
 const SPEAKER_COLORS: { tag: string; accent: string }[] = [
-  { tag: 'bg-[#FF6B35]/15 text-[#C2410C] dark:bg-[#FF6B35]/20 dark:text-[#FF8A5C]', accent: '#FF6B35' },
-  { tag: 'bg-[#D946EF]/15 text-[#A21CAF] dark:bg-[#D946EF]/20 dark:text-[#E879F9]', accent: '#D946EF' },
+  { tag: 'bg-[#2BA6A0]/15 text-[#155956] dark:bg-[#2BA6A0]/20 dark:text-[#73CEC2]', accent: '#2BA6A0' },
+  { tag: 'bg-[#5D6FE8]/15 text-[#4555C4] dark:bg-[#5D6FE8]/20 dark:text-[#8793F2]', accent: '#5D6FE8' },
   { tag: 'bg-amber-100 text-amber-700', accent: '#C98F3D' },
   { tag: 'bg-orange-100 text-orange-700', accent: '#FB923C' },
   { tag: 'bg-pink-100 text-pink-700', accent: '#EC4899' },
-  { tag: 'bg-rose-100 text-rose-700', accent: '#F43F5E' },
-  { tag: 'bg-fuchsia-100 text-fuchsia-700', accent: '#D946EF' },
-  { tag: 'bg-purple-100 text-purple-700', accent: '#A855F7' },
+  { tag: 'bg-rose-100 text-rose-700', accent: '#B75B6A' },
+  { tag: 'bg-fuchsia-100 text-fuchsia-700', accent: '#5D6FE8' },
+  { tag: 'bg-purple-100 text-purple-700', accent: '#7788DE' },
   { tag: 'bg-red-100 text-red-700', accent: '#EF4444' },
   { tag: 'bg-yellow-100 text-yellow-700', accent: '#EAB308' },
 ]
@@ -109,7 +112,7 @@ function highlight(text: string, query: string): React.ReactNode {
   while (idx >= 0) {
     if (idx > i) out.push(text.slice(i, idx))
     out.push(
-      <mark key={idx} className="rounded-sm bg-[#FF6B35]/25 px-0.5 text-inherit dark:bg-[#D946EF]/30">{text.slice(idx, idx + query.length)}</mark>
+      <mark key={idx} className="rounded-sm bg-[#2BA6A0]/25 px-0.5 text-inherit dark:bg-[#5D6FE8]/30">{text.slice(idx, idx + query.length)}</mark>
     )
     i = idx + query.length
     idx = lower.indexOf(qi, i)
@@ -133,6 +136,7 @@ export default function VideoDetail() {
   const segmentEls = useRef<Map<number, HTMLElement>>(new Map())
   const reduced = usePrefersReducedMotion()
   const [retrying, setRetrying] = useState(false)
+  const [refreshTick, setRefreshTick] = useState(0)
   const [autoScroll, setAutoScroll] = useState(true)
   const [resumeAt, setResumeAt] = useState<number | null>(() => (id ? getResume(id) : null))
   const [searchQuery, setSearchQuery] = useState('')
@@ -145,13 +149,13 @@ export default function VideoDetail() {
   const { toast } = useToast()
 
   const { data: video, loading: loadingVideo } = useFetch<Video | null>(
-    () => (id ? getVideo(id) : Promise.reject()), [id]
+    () => (id ? getVideo(id) : Promise.reject()), [id, refreshTick]
   )
   const { data: transcript, loading: loadingTranscript } = useFetch<Transcript | null>(
-    () => (id && (video?.status === 'analyzing' || video?.status === 'done') ? getTranscript(id).catch(() => null) : Promise.resolve(null)), [id, video?.status]
+    () => (id && (video?.status === 'analyzing' || video?.status === 'done') ? getTranscript(id).catch(() => null) : Promise.resolve(null)), [id, video?.status, refreshTick]
   )
   const { data: graph } = useFetch<Graph | null>(
-    () => (id && video?.status === 'done' ? getGraph(id).catch(() => null) : Promise.resolve(null)), [id, video?.status]
+    () => (id && video?.status === 'done' ? getGraph(id).catch(() => null) : Promise.resolve(null)), [id, video?.status, refreshTick]
   )
 
   useEffect(() => {
@@ -169,7 +173,9 @@ export default function VideoDetail() {
           setTranslatedLabels(res.nodeLabels)
         }
       })
-      .catch(() => {})
+      .catch(() => {
+        if (!cancelled) toast('Could not translate transcript', 'error')
+      })
       .finally(() => {
         if (!cancelled) setTranslating(false)
       })
@@ -182,7 +188,7 @@ export default function VideoDetail() {
       try {
         const updated = await getVideo(id)
         if (!isProcessing(updated.status)) {
-          window.location.reload()
+          setRefreshTick((t) => t + 1)
         }
       } catch {}
     }, 4000)
@@ -220,6 +226,7 @@ export default function VideoDetail() {
   }, [graph, translatedLabels, targetLang])
 
   const groups = useMemo(() => (displaySegments.length > 0 ? groupBySpeaker(displaySegments) : []), [displaySegments])
+  const { ref: staggerScrollRef, visibleItems: visibleTranscriptGroups } = useStaggeredScrollAnimation(groups.length)
 
   const flatSegments = useMemo(() => {
     const out: { speaker: string; seg: Segment; idx: number }[] = []
@@ -344,7 +351,7 @@ export default function VideoDetail() {
     setRetrying(true)
     try {
       await retryVideo(id)
-      window.location.reload()
+      setRefreshTick((t) => t + 1)
     } catch {
       setRetrying(false)
       toast('Could not retry processing', 'error')
@@ -355,27 +362,45 @@ export default function VideoDetail() {
   if (loading) {
     return <WorkspaceSkeleton />
   }
-  if (!video) return null
+  if (!video) {
+    return (
+      <div className="min-h-screen overflow-x-hidden bg-[#FAFAFA] px-4 py-24 dark:bg-[#0A0A0A]">
+        <main className="mx-auto max-w-2xl">
+          <GlassCard className="px-8 py-14 text-center">
+            <Eyebrow tone="default" className="justify-center">Universe not found</Eyebrow>
+            <h1 className="font-display mt-3 text-2xl font-bold tracking-tight text-stone-900 dark:text-white">
+              This universe has <span className="font-serif italic font-normal title-gradient">vanished</span>.
+            </h1>
+            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-stone-500 dark:text-stone-400">
+              The video you're looking for may have been removed, or its link has run out of energy. Return to your workspace and summon it again.
+            </p>
+            <Button variant="secondary" onClick={() => navigate('/app')} className="mt-8">
+              Back to workspace
+            </Button>
+          </GlassCard>
+        </main>
+      </div>
+    )
+  }
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-[#FAFAFA] dark:bg-[#0A0A0A]">
+    <div className="workspace-page">
       <main className="mx-auto w-full max-w-7xl px-4 py-8">
         {/* ── Back → workspace breadcrumb ───────────────────────── */}
-        <motion.button
-          onClick={() => navigate('/')}
-          aria-label="Back to workspace"
-          className="mb-4 inline-flex items-center gap-2 rounded-full border border-black/10 bg-white/70 px-3 py-1.5 text-sm text-stone-600 transition-colors hover:border-[#FF6B35]/60 hover:text-[#EA580C] dark:border-white/10 dark:bg-white/[0.04] dark:text-stone-300 dark:hover:border-[#D946EF]/60 dark:hover:text-[#FF8A5C]"
+        <motion.div
           initial={{ opacity: 0, y: -6 }}
           animate={{ opacity: 1, y: 0 }}
           transition={transitions.content}
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="M15 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" /></svg>
-          Back to workspace
-        </motion.button>
+          <Button variant="secondary" onClick={() => navigate('/app')} className="mb-4" aria-label="Back to workspace">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="M15 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            Back to workspace
+          </Button>
+        </motion.div>
 
         {/* ── Player with orchid glow + pill badges ─────────────── */}
         <motion.div
-          className="relative overflow-hidden rounded-3xl border border-black/10 bg-white/70 p-2 shadow-[0_0_60px_rgb(217_70_239/0.14),0_0_130px_rgb(255_107_53/0.08)] backdrop-blur-xl dark:border-white/10 dark:bg-stone-900/70 dark:shadow-[0_0_70px_rgb(217_70_239/0.20),0_0_150px_rgb(255_107_53/0.12)]"
+          className="relative overflow-hidden rounded-3xl border border-black/[0.06] bg-white/70 p-2 shadow-[inset_0_1px_0_rgb(255_255_255/0.6),0_0_60px_rgb(93_111_232/0.14),0_0_130px_rgb(43_166_160/0.08)] backdrop-blur-xl dark:border-white/10 dark:bg-stone-900/70 dark:shadow-[inset_0_1px_0_rgb(255_255_255/0.05),0_0_70px_rgb(93_111_232/0.20),0_0_150px_rgb(43_166_160/0.12)]"
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={transitions.content}
@@ -389,7 +414,7 @@ export default function VideoDetail() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -6 }}
               transition={transitions.content}
-              className="absolute right-5 top-5 z-30 flex items-center gap-2 rounded-full border border-[#FF6B35]/50 bg-stone-950/85 px-3 py-1.5 text-xs font-semibold text-[#FFB58C] shadow-lg backdrop-blur-md transition-all hover:scale-[1.03] hover:bg-stone-900"
+              className="absolute right-5 top-5 z-30 flex items-center gap-2 rounded-full border border-[#2BA6A0]/50 bg-stone-950/85 px-3 py-1.5 text-xs font-semibold text-[#B5E4D5] shadow-lg backdrop-blur-md transition-all hover:scale-[1.03] hover:bg-stone-900"
               aria-label={`Resume at ${formatTime(resumeAt)}`}
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86a1 1 0 0 0-1.5.86z" /></svg>
@@ -418,7 +443,7 @@ export default function VideoDetail() {
               value={targetLang}
               onChange={(e) => setTargetLang(e.target.value)}
               aria-label="Translate to language"
-              className="appearance-none rounded-full border border-black/10 bg-white/70 py-1.5 pl-3 pr-8 text-xs font-semibold text-stone-700 outline-none transition-colors focus:border-[#FF6B35]/60 dark:border-white/15 dark:bg-white/[0.04] dark:text-stone-200 dark:focus:border-[#D946EF]/60"
+              className="appearance-none rounded-full border border-black/10 bg-white/70 py-1.5 pl-3 pr-8 text-xs font-semibold text-stone-700 outline-none transition-colors focus:border-[#2BA6A0]/60 dark:border-white/15 dark:bg-white/[0.04] dark:text-stone-200 dark:focus:border-[#5D6FE8]/60"
             >
               {LANGUAGES.map((l) => (
                 <option key={l.code} value={l.code}>{l.label}</option>
@@ -461,7 +486,7 @@ export default function VideoDetail() {
         </motion.div>
 
         {/* ── Tabs ──────────────────────────────────────────────── */}
-        <div className="mt-6 flex gap-1 rounded-2xl border border-black/10 bg-white/65 p-1 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-stone-900/70">
+        <div className="mt-6 flex gap-1 rounded-2xl border border-black/[0.06] bg-white/70 p-1 shadow-[inset_0_1px_0_rgb(255_255_255/0.6)] backdrop-blur-xl dark:border-white/10 dark:bg-stone-900/70">
           <TabBtn active={mainTab === 'transcript'} onClick={() => setMainTab('transcript')}>Transcript</TabBtn>
           <TabBtn active={mainTab === 'graph'} onClick={() => setMainTab('graph')} disabled={!transcript}>
             Knowledge Graph {graph ? `(${graph.nodes.length})` : ''}
@@ -485,13 +510,13 @@ export default function VideoDetail() {
               {mainTab === 'transcript' && (displaySegments.length > 0 ? (
                 <section>
                   <div className="mb-4 flex flex-wrap items-center gap-2">
-                    <span className="rounded-full border border-[#FF6B35]/40 bg-[#FF6B35]/10 px-2.5 py-0.5 text-xs font-semibold uppercase text-[#C2410C] dark:border-[#FF6B35]/30 dark:bg-[#FF6B35]/[0.08] dark:text-[#FF8A5C]">
+                    <span className="rounded-full border border-[#2BA6A0]/40 bg-[#2BA6A0]/10 px-2.5 py-0.5 text-xs font-semibold uppercase text-[#155956] dark:border-[#2BA6A0]/30 dark:bg-[#2BA6A0]/[0.08] dark:text-[#73CEC2]">
                       {targetLang || originalLang}
                     </span>
                     <span className="text-xs text-gray-500 dark:text-stone-400">{displaySegments.length} segments &middot; {groups.length} turns</span>
 
                     <div className="ml-auto flex flex-wrap items-center gap-2">
-                      <div className={`relative flex items-center gap-1 rounded-xl border px-2 py-1.5 ${searchQuery ? 'border-[#FF6B35]/60 dark:border-[#D946EF]/50' : 'border-stone-200 dark:border-white/10'} bg-white/80 dark:bg-stone-800/70`}>
+                      <div className={`relative flex items-center gap-1 rounded-xl border px-2 py-1.5 ${searchQuery ? 'border-[#2BA6A0]/60 dark:border-[#5D6FE8]/50' : 'border-stone-200 dark:border-white/10'} bg-white/80 dark:bg-stone-800/70`}>
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-stone-400"><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" strokeLinecap="round" /></svg>
                         <input
                           aria-label="Search transcript"
@@ -501,7 +526,7 @@ export default function VideoDetail() {
                           className="w-28 bg-transparent text-xs text-stone-800 outline-none placeholder:text-stone-400 sm:w-36 dark:text-stone-100 dark:placeholder:text-stone-500"
                         />
                         {searching && (
-                          <span className="whitespace-nowrap font-mono text-[10px] text-[#EA580C] dark:text-[#FF8A5C]">{activeMatch + 1}/{matches.length}</span>
+                          <span className="whitespace-nowrap font-mono text-[10px] text-[#1D7773] dark:text-[#73CEC2]">{activeMatch + 1}/{matches.length}</span>
                         )}
                         <button type="button" onClick={() => goMatch(-1)} disabled={!searching} aria-label="Previous match" className="grid h-5 w-5 place-items-center rounded text-stone-400 transition-colors hover:text-stone-700 disabled:opacity-30 dark:hover:text-stone-100">
                           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M15 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" /></svg>
@@ -512,13 +537,13 @@ export default function VideoDetail() {
                       </div>
 
                       <button type="button" onClick={copyTranscript} aria-label="Copy transcript" title="Copy transcript"
-                        className="flex items-center gap-1.5 rounded-xl border border-stone-200 bg-white/80 px-2.5 py-1.5 text-xs font-medium text-stone-600 transition-colors hover:border-[#FF6B35]/60 hover:text-[#EA580C] dark:border-white/10 dark:bg-stone-800/70 dark:text-stone-300 dark:hover:border-[#D946EF]/50 dark:hover:text-[#FF8A5C]">
+                        className="flex items-center gap-1.5 rounded-xl border border-stone-200 bg-white/80 px-2.5 py-1.5 text-xs font-medium text-stone-600 transition-colors hover:border-[#2BA6A0]/60 hover:text-[#1D7773] dark:border-white/10 dark:bg-stone-800/70 dark:text-stone-300 dark:hover:border-[#5D6FE8]/50 dark:hover:text-[#73CEC2]">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" /></svg>
                         Copy
                       </button>
 
                       <button type="button" onClick={exportSubtitles.bind(null, 'vtt')} title="Export .VTT subtitles"
-                        className="rounded-xl border border-stone-200 bg-white/80 px-2.5 py-1.5 text-xs font-medium text-stone-600 transition-colors hover:border-[#FF6B35]/60 hover:text-[#EA580C] dark:border-white/10 dark:bg-stone-800/70 dark:text-stone-300 dark:hover:border-[#D946EF]/50 dark:hover:text-[#E879F9]">
+                        className="rounded-xl border border-stone-200 bg-white/80 px-2.5 py-1.5 text-xs font-medium text-stone-600 transition-colors hover:border-[#2BA6A0]/60 hover:text-[#1D7773] dark:border-white/10 dark:bg-stone-800/70 dark:text-stone-300 dark:hover:border-[#5D6FE8]/50 dark:hover:text-[#8793F2]">
                         .VTT
                       </button>
                       <button type="button" onClick={exportSubtitles.bind(null, 'srt')} title="Export .SRT subtitles"
@@ -527,7 +552,7 @@ export default function VideoDetail() {
                       </button>
 
                       <label className="flex cursor-pointer select-none items-center gap-2 text-xs text-gray-500 dark:text-stone-400">
-                        <span className="relative inline-flex h-4 w-7 items-center rounded-full transition-colors" style={{ background: autoScroll ? '#FF6B35' : '#737373' }}>
+                        <span className="relative inline-flex h-4 w-7 items-center rounded-full transition-colors" style={{ background: autoScroll ? '#2BA6A0' : '#737373' }}>
                           <span className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition-transform ${autoScroll ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
                         </span>
                         <input type="checkbox" checked={autoScroll} onChange={(e) => setAutoScroll(e.target.checked)} className="sr-only" />
@@ -564,11 +589,11 @@ export default function VideoDetail() {
                                 handleSeek(f.seg.start)
                               }
                             }}
-                            className={`seg-row group flex cursor-pointer gap-4 px-4 py-2.5 transition-colors duration-200 ease-out ${active ? 'active transcript-active' : 'hover:bg-[#FF6B35]/5 dark:hover:bg-stone-800/60'}`}
+                            className={`seg-row group flex cursor-pointer gap-4 px-4 py-2.5 transition-colors duration-200 ease-out ${active ? 'active transcript-active' : 'hover:bg-[#2BA6A0]/5 dark:hover:bg-stone-800/60'}`}
                             style={{ ['--seg-accent' as string]: accent } as React.CSSProperties}
                           >
                             <span className="seg-bar" />
-                            <span style={{ minWidth: 48 }} className={`mt-0.5 whitespace-nowrap font-mono text-xs ${active ? 'font-semibold text-[#EA580C] dark:text-[#FF8A5C]' : 'text-gray-400 dark:text-stone-500'}`}>
+                            <span style={{ minWidth: 48 }} className={`mt-0.5 whitespace-nowrap font-mono text-xs ${active ? 'font-semibold text-[#1D7773] dark:text-[#73CEC2]' : 'text-gray-400 dark:text-stone-500'}`}>
                               {formatTime(f.seg.start)}
                             </span>
                             <div className="min-w-0 flex-1">
@@ -590,13 +615,12 @@ export default function VideoDetail() {
                       className={`rounded-2xl border p-2 space-y-2 overflow-y-auto ${tw.surface}`}
                     >
                       {(() => {
-                        const { ref: scrollRef, visibleItems: visibleGroups } = useStaggeredScrollAnimation(groups.length)
                         let flatIdx = 0
                         return (
-                          <div ref={scrollRef}>
+                          <div ref={staggerScrollRef}>
                             {groups.map((group, gi) => {
                               const accent = getSpeakerColor(group.speaker).accent
-                              const isVisible = visibleGroups.has(gi)
+                              const isVisible = visibleTranscriptGroups.has(gi)
                               return (
                                 <motion.div
                                   key={gi}
@@ -654,14 +678,14 @@ export default function VideoDetail() {
                                         >
                                           <span className="seg-bar" />
                                           <span
-                                            className={`mt-0.5 shrink-0 rounded-md border px-1.5 py-0.5 whitespace-nowrap font-mono text-[11px] backdrop-blur-sm ${active ? 'font-bold border-[#FF6B35]/40 bg-[#FF6B35]/10 text-[#EA580C] dark:border-[#D946EF]/40 dark:bg-[#D946EF]/10 dark:text-[#FF8A5C]' : 'border-transparent text-gray-400 dark:text-stone-500'} group-hover:border-[#FF6B35]/30 group-hover:text-[#C2410C] dark:group-hover:text-[#FF8A5C]`}
+                                            className={`mt-0.5 shrink-0 rounded-md border px-1.5 py-0.5 whitespace-nowrap font-mono text-[11px] backdrop-blur-sm ${active ? 'font-bold border-[#2BA6A0]/40 bg-[#2BA6A0]/10 text-[#1D7773] dark:border-[#5D6FE8]/40 dark:bg-[#5D6FE8]/10 dark:text-[#73CEC2]' : 'border-transparent text-gray-400 dark:text-stone-500'} group-hover:border-[#2BA6A0]/30 group-hover:text-[#155956] dark:group-hover:text-[#73CEC2]`}
                                           >
                                             {formatTime(seg.start)}
                                           </span>
                                           <p className={`flex-1 text-sm leading-relaxed ${active ? 'text-[#9A3412] dark:text-[#FFE4D6]' : 'text-gray-800 dark:text-stone-200'}`}>{seg.text}</p>
                                           <span className="mt-0.5 shrink-0 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
                                             <span
-                                              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold text-white shadow-[0_0_12px_rgb(217_70_239/0.5)]"
+                                              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold text-white shadow-[0_0_12px_rgb(93_111_232/0.5)]"
                                               style={{ background: accent }}
                                             >
                                               <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86a1 1 0 0 0-1.5.86z" /></svg>
@@ -682,7 +706,7 @@ export default function VideoDetail() {
                   )}
                 </section>
               ) : video.status === 'done' ? (
-                <div className="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-[#FF6B35]/40 bg-white/65 py-16 text-center text-stone-500 backdrop-blur-xl dark:border-[#D946EF]/40 dark:bg-stone-900/50 dark:text-stone-400">
+                <div className="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-[#2BA6A0]/40 bg-white/65 py-16 text-center text-stone-500 backdrop-blur-xl dark:border-[#5D6FE8]/40 dark:bg-stone-900/50 dark:text-stone-400">
                   No transcript.
                 </div>
               ) : (
@@ -694,7 +718,7 @@ export default function VideoDetail() {
                   /* Full-bleed: breaks the max-w-5xl column, edge-to-edge */
                   <div className="relative left-1/2 right-1/2 w-screen -mx-[50vw] overflow-visible">
                     <div className="px-4 pb-12 sm:px-6">
-                      <div className="flex gap-1 rounded-xl border border-black/10 bg-white/65 p-1 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-stone-900/70">
+                      <div className="flex gap-1 rounded-xl border border-black/[0.06] bg-white/70 p-1 shadow-[inset_0_1px_0_rgb(255_255_255/0.6)] backdrop-blur-xl dark:border-white/10 dark:bg-stone-900/70">
                         <ViewBtn active={graphView === 'neural'} onClick={() => setGraphView('neural')}>Neural</ViewBtn>
                         <ViewBtn active={graphView === 'tree'} onClick={() => setGraphView('tree')}>Tree</ViewBtn>
                         <ViewBtn active={graphView === 'network'} onClick={() => setGraphView('network')}>Network</ViewBtn>
@@ -736,7 +760,7 @@ export default function VideoDetail() {
                               <div className="mx-auto max-w-7xl space-y-8">
                                 {topics.length > 0 && (
                                   <section>
-                                    <h3 className="mb-3 font-semibold text-stone-800 dark:text-stone-200">Topics</h3>
+                                    <h3 className="font-display mb-3 text-lg font-bold text-stone-800 dark:text-stone-200">Topics</h3>
                                     <motion.div className="grid grid-cols-1 sm:grid-cols-2 gap-3" initial="initial" animate="animate" variants={staggerContainer()}>
                                       {topics.map((node) => (
                                         <motion.div key={node.id} variants={staggerItem()} className={`shine-card rounded-2xl p-3 cursor-pointer ${tw.surface} ${tw.surfaceHover}`} onClick={() => node.timestampRef != null && handleSeek(node.timestampRef)}>
@@ -749,7 +773,7 @@ export default function VideoDetail() {
                                 )}
                                 {entities.length > 0 && (
                                   <section>
-                                    <h3 className="mb-3 font-semibold text-stone-800 dark:text-stone-200">Entities</h3>
+                                    <h3 className="font-display mb-3 text-lg font-bold text-stone-800 dark:text-stone-200">Entities</h3>
                                     <motion.div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" initial="initial" animate="animate" variants={staggerContainer()}>
                                       {entities.map((node) => {
                                         const et = (node.metadata?.entityType as string) || ''
@@ -769,10 +793,10 @@ export default function VideoDetail() {
                                 )}
                                 {keywords.length > 0 && (
                                   <section>
-                                    <h3 className="mb-3 font-semibold text-stone-800 dark:text-stone-200">Key Terms</h3>
+                                    <h3 className="font-display mb-3 text-lg font-bold text-stone-800 dark:text-stone-200">Key Terms</h3>
                                     <div className="flex flex-wrap gap-2">
                                       {keywords.map((node) => (
-                                        <span key={node.id} className="rounded-full border border-stone-200 bg-gray-100 px-3 py-1 text-sm text-gray-700 cursor-pointer transition-colors duration-150 ease-out hover:border-[#FF6B35]/50 hover:bg-[#FF6B35]/10 dark:border-white/10 dark:bg-stone-800 dark:text-stone-300 dark:hover:border-[#D946EF]/40 dark:hover:bg-[#D946EF]/10"
+                                        <span key={node.id} className="rounded-full border border-stone-200 bg-gray-100 px-3 py-1 text-sm text-gray-700 cursor-pointer transition-colors duration-150 ease-out hover:border-[#2BA6A0]/50 hover:bg-[#2BA6A0]/10 shadow-[inset_0_1px_0_rgb(255_255_255/0.6)] dark:border-white/10 dark:bg-stone-800 dark:text-stone-300 dark:hover:border-[#5D6FE8]/40 dark:hover:bg-[#5D6FE8]/10 dark:shadow-[inset_0_1px_0_rgb(255_255_255/0.05)]"
                                           onClick={() => node.timestampRef != null && handleSeek(node.timestampRef)}>{node.label}</span>
                                       ))}
                                     </div>
@@ -789,7 +813,7 @@ export default function VideoDetail() {
               )}
 
               {mainTab === 'graph' && !graph && (
-                <div className="rounded-3xl border border-dashed border-[#FF6B35]/40 bg-white/65 py-16 text-center text-stone-500 backdrop-blur-xl dark:border-[#D946EF]/40 dark:bg-stone-900/50 dark:text-stone-400">
+                <div className="rounded-3xl border border-dashed border-[#2BA6A0]/40 bg-white/65 py-16 text-center text-stone-500 backdrop-blur-xl dark:border-[#5D6FE8]/40 dark:bg-stone-900/50 dark:text-stone-400">
                   {video.status === 'done' ? 'Analysis will appear once processing is complete.' : <OutputSkeleton lines={3} />}
                 </div>
               )}
@@ -851,19 +875,21 @@ function RecallPanel({
   const speaker = card.speaker || 'Speaker'
 
   return (
-    <section className="overflow-hidden rounded-[2rem] border border-[#D946EF]/20 bg-stone-950 text-white shadow-[0_30px_90px_rgb(217_70_239/0.15)]">
+    <section className="overflow-hidden rounded-[2rem] border border-[#5D6FE8]/20 bg-stone-950 text-white shadow-[0_30px_90px_rgb(93_111_232/0.15)]">
       <div className="relative overflow-hidden px-5 py-6 sm:px-8 sm:py-8">
-        <div className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-[#D946EF]/20 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-28 left-1/4 h-64 w-64 rounded-full bg-[#FF6B35]/15 blur-3xl" />
+        <div className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-[#5D6FE8]/20 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-28 left-1/4 h-64 w-64 rounded-full bg-[#2BA6A0]/15 blur-3xl" />
         <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-xl">
-            <div className="flex items-center gap-2 text-[#FFB58C]">
-              <span className="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-br from-[#FF6B35] to-[#D946EF] shadow-[0_0_22px_rgb(217_70_239/0.45)]">
+            <div className="flex items-center gap-2 text-[#B5E4D5]">
+              <span className="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-br from-[#2BA6A0] to-[#5D6FE8] shadow-[0_0_22px_rgb(93_111_232/0.45)]">
                 <BrainCircuit size={17} />
               </span>
               <span className="font-mono text-[10px] font-medium uppercase tracking-[0.24em]">KnoVid Recall Loop</span>
             </div>
-            <h2 className="font-display mt-4 text-2xl font-black tracking-tight sm:text-3xl">Remember it before you reread it.</h2>
+            <h2 className="font-display mt-4 text-2xl font-black tracking-tight sm:text-3xl">
+              Remember it before you <span className="font-serif italic font-normal title-gradient">reread</span> it.
+            </h2>
             <p className="mt-2 text-sm leading-6 text-stone-400">
               A quick retrieval pass over the moments that shaped this video. Every answer stays anchored to the speaker and timestamp.
             </p>
@@ -871,10 +897,10 @@ function RecallPanel({
           <div className="min-w-[12rem] rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-xl">
             <div className="flex items-center justify-between text-xs text-stone-400">
               <span>Memory pass</span>
-              <span className="font-mono text-[#FFB58C]">{remembered}/{cards.length}</span>
+              <span className="font-mono text-[#B5E4D5]">{remembered}/{cards.length}</span>
             </div>
             <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10">
-              <motion.div className="h-full rounded-full bg-gradient-to-r from-[#FF6B35] to-[#D946EF]" animate={{ width: `${progress}%` }} />
+              <motion.div className="h-full rounded-full bg-gradient-to-r from-[#2BA6A0] to-[#5D6FE8]" animate={{ width: `${progress}%` }} />
             </div>
             <p className="mt-2 text-[11px] text-stone-500">Source: {videoTitle}</p>
           </div>
@@ -884,7 +910,7 @@ function RecallPanel({
       <div className="border-t border-white/10 bg-black/20 p-5 sm:p-8">
         <div className="mx-auto max-w-2xl">
           <div className="mb-5 flex items-center justify-between gap-3">
-            <span className="rounded-full border border-[#FF6B35]/30 bg-[#FF6B35]/10 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.16em] text-[#FFB58C]">
+            <span className="rounded-full border border-[#2BA6A0]/30 bg-[#2BA6A0]/10 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.16em] text-[#B5E4D5]">
               Prompt {index + 1}
             </span>
             <button type="button" onClick={() => onSeek(card.start)} className="inline-flex items-center gap-1.5 text-xs text-stone-400 transition-colors hover:text-white">
@@ -893,14 +919,14 @@ function RecallPanel({
           </div>
 
           <div className="rounded-3xl border border-white/10 bg-white/[0.045] p-5 sm:p-7">
-            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#E879F9]">{speaker} · {formatTime(card.start)}</p>
+            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#8793F2]">{speaker} · {formatTime(card.start)}</p>
             <h3 className="mt-3 font-display text-xl font-bold leading-snug sm:text-2xl">
               What is the core idea in this moment?
             </h3>
             <AnimatePresence mode="wait">
               {revealed ? (
-                <motion.div key="answer" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="mt-5 rounded-2xl border border-[#D946EF]/25 bg-[#D946EF]/[0.08] p-4">
-                  <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-[#E879F9]"><Sparkles size={14} /> Source answer</div>
+                <motion.div key="answer" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="mt-5 rounded-2xl border border-[#5D6FE8]/25 bg-[#5D6FE8]/[0.08] p-4">
+                  <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-[#8793F2]"><Sparkles size={14} /> Source answer</div>
                   <p className="text-sm leading-7 text-stone-200">{card.text}</p>
                 </motion.div>
               ) : (
@@ -921,7 +947,7 @@ function RecallPanel({
                   Reveal source <Eye size={15} />
                 </button>
               ) : (
-                <button type="button" onClick={onRemember} className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#FF6B35] to-[#D946EF] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_30px_rgb(217_70_239/0.35)] transition-transform hover:-translate-y-0.5">
+                <button type="button" onClick={onRemember} className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#2BA6A0] to-[#5D6FE8] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_30px_rgb(93_111_232/0.35)] transition-transform hover:-translate-y-0.5">
                   I remembered it <Check size={15} />
                 </button>
               )}
@@ -1054,14 +1080,14 @@ function StepNode({ state, index, label }: { state: StepState; index: number; la
     return (
       <span className="flex items-center gap-2">
         <motion.span
-          className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#FF6B35] text-white shadow-[0_0_16px_rgb(255_107_53/0.5)]"
+          className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#2BA6A0] text-white shadow-[0_0_16px_rgb(43_166_160/0.5)]"
           initial={{ scale: 0.6, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={transitions.contentIn}
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7" /></svg>
         </motion.span>
-        <span className="hidden text-xs font-semibold text-[#FF6B35] sm:block">{label}</span>
+        <span className="hidden text-xs font-semibold text-[#2BA6A0] sm:block">{label}</span>
       </span>
     )
   }
@@ -1071,13 +1097,13 @@ function StepNode({ state, index, label }: { state: StepState; index: number; la
         <span className="relative grid h-7 w-7 shrink-0 place-items-center">
           <span className="spin-ring absolute inset-0" />
           <motion.span
-            className="h-3.5 w-3.5 rounded-full bg-gradient-to-br from-[#FF6B35] to-[#D946EF] shadow-[0_0_16px_rgb(217_70_239/0.7)]"
+            className="h-3.5 w-3.5 rounded-full bg-gradient-to-br from-[#2BA6A0] to-[#5D6FE8] shadow-[0_0_16px_rgb(93_111_232/0.7)]"
             animate={reduced ? {} : { scale: [1, 1.18, 1] }}
             transition={{ repeat: Infinity, duration: 1.6, ease: 'easeInOut' }}
           />
         </span>
         <motion.span
-          className="hidden animate-pulse text-xs font-semibold text-[#D946EF] sm:block"
+          className="hidden animate-pulse text-xs font-semibold text-[#5D6FE8] sm:block"
           animate={reduced ? {} : { opacity: [1, 0.55, 1] }}
           transition={{ repeat: Infinity, duration: 1.6, ease: 'easeInOut' }}
         >
@@ -1114,9 +1140,9 @@ function StepNode({ state, index, label }: { state: StepState; index: number; la
 function Connector({ state }: { state: 'done' | 'active' | 'pending' }) {
   const cls =
     state === 'done'
-      ? 'bg-[#FF6B35]/60'
+      ? 'bg-[#2BA6A0]/60'
       : state === 'active'
-        ? 'bg-gradient-to-r from-[#FF6B35]/60 to-[#D946EF]/60'
+        ? 'bg-gradient-to-r from-[#2BA6A0]/60 to-[#5D6FE8]/60'
         : 'bg-black/10 dark:bg-white/10'
   return <span className={`h-0.5 min-w-3 flex-1 rounded-full ${cls}`} />
 }
@@ -1135,8 +1161,8 @@ function StatusChip({ status, duration }: { status: string; duration: number }) 
 function Chip({ tone = 'default', children }: { tone?: 'default' | 'tangerine' | 'orchid'; children: React.ReactNode }) {
   const cls = {
     default: 'border-black/10 bg-white/70 text-stone-600 dark:border-white/15 dark:bg-white/[0.04] dark:text-stone-300',
-    tangerine: 'border-[#FF6B35]/40 bg-[#FF6B35]/10 text-[#C2410C] dark:border-[#FF6B35]/35 dark:bg-[#FF6B35]/[0.08] dark:text-[#FF8A5C]',
-    orchid: 'border-[#D946EF]/40 bg-[#D946EF]/10 text-[#A21CAF] dark:border-[#D946EF]/35 dark:bg-[#D946EF]/[0.08] dark:text-[#E879F9]',
+    tangerine: 'border-[#2BA6A0]/40 bg-[#2BA6A0]/10 text-[#155956] dark:border-[#2BA6A0]/35 dark:bg-[#2BA6A0]/[0.08] dark:text-[#73CEC2]',
+    orchid: 'border-[#5D6FE8]/40 bg-[#5D6FE8]/10 text-[#4555C4] dark:border-[#5D6FE8]/35 dark:bg-[#5D6FE8]/[0.08] dark:text-[#8793F2]',
   }[tone]
   return (
     <span className={`inline-flex max-w-full items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold backdrop-blur-md ${cls}`}>
@@ -1151,20 +1177,20 @@ function WorkspaceSkeleton() {
   return (
     <div className="min-h-screen bg-[#FAFAFA] dark:bg-[#0A0A0A]">
       <main className="mx-auto w-full max-w-7xl px-4 py-8" aria-hidden="true">
-        <div className="aspect-video rounded-3xl skeleton-shimmer-brand" />
-        <div className="mt-5 h-8 w-72 rounded skeleton-shimmer-brand" />
-        <div className="mt-4 h-28 rounded-3xl skeleton-shimmer-brand" />
+        <div className="aspect-video rounded-3xl skeleton-shimmer" />
+        <div className="mt-5 h-8 w-72 rounded skeleton-shimmer" />
+        <div className="mt-4 h-28 rounded-3xl skeleton-shimmer" />
         <div className="mt-6 flex gap-2">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="h-10 w-28 rounded-xl skeleton-shimmer-brand" />
+            <div key={i} className="h-10 w-28 rounded-xl skeleton-shimmer" />
           ))}
         </div>
         <div className="mt-6 space-y-3">
           {[1, 2, 3, 4, 5].map((i) => (
             <div key={i} className="rounded-2xl border border-black/10 bg-white/70 p-4 dark:border-white/10 dark:bg-white/[0.03]">
-              <div className="mb-2 h-3 w-16 rounded skeleton-shimmer-brand" />
-              <div className={`h-3 rounded skeleton-shimmer-brand ${i % 3 === 0 ? 'w-3/4' : i % 3 === 1 ? 'w-full' : 'w-5/6'}`} />
-              <div className={`mt-2 h-3 rounded skeleton-shimmer-brand ${i % 2 === 0 ? 'w-11/12' : 'w-2/3'}`} />
+              <div className="mb-2 h-3 w-16 rounded skeleton-shimmer" />
+              <div className={`h-3 rounded skeleton-shimmer ${i % 3 === 0 ? 'w-3/4' : i % 3 === 1 ? 'w-full' : 'w-5/6'}`} />
+              <div className={`mt-2 h-3 rounded skeleton-shimmer ${i % 2 === 0 ? 'w-11/12' : 'w-2/3'}`} />
             </div>
           ))}
         </div>
@@ -1179,11 +1205,11 @@ function OutputSkeleton({ lines = 5 }: { lines?: number }) {
       {Array.from({ length: lines }).map((_, i) => (
         <div key={i} className="rounded-2xl border border-black/10 bg-white/70 p-4 dark:border-white/10 dark:bg-white/[0.03]">
           <div className="mb-2 flex items-center gap-2">
-            <div className="h-4 w-14 rounded-full skeleton-shimmer-brand" />
-            <div className="h-3 w-20 rounded skeleton-shimmer-brand" />
+            <div className="h-4 w-14 rounded-full skeleton-shimmer" />
+            <div className="h-3 w-20 rounded skeleton-shimmer" />
           </div>
-          <div className={`h-3 rounded skeleton-shimmer-brand ${i % 3 === 0 ? 'w-3/4' : i % 3 === 1 ? 'w-full' : 'w-5/6'}`} />
-          <div className={`mt-2 h-3 rounded skeleton-shimmer-brand ${i % 2 === 0 ? 'w-11/12' : 'w-2/3'}`} />
+          <div className={`h-3 rounded skeleton-shimmer ${i % 3 === 0 ? 'w-3/4' : i % 3 === 1 ? 'w-full' : 'w-5/6'}`} />
+          <div className={`mt-2 h-3 rounded skeleton-shimmer ${i % 2 === 0 ? 'w-11/12' : 'w-2/3'}`} />
         </div>
       ))}
     </div>
@@ -1205,14 +1231,14 @@ function GraphFallback() {
       {nodes.map((n, i) => (
         <span
           key={i}
-          className="absolute rounded-full bg-[#D946EF]/40 animate-pulse dark:bg-[#D946EF]/30"
+          className="absolute rounded-full bg-[#5D6FE8]/40 animate-pulse dark:bg-[#5D6FE8]/30"
           style={{ top: n.top, left: n.left, width: n.size, height: n.size, animationDelay: `${i * 160}ms` }}
         />
       ))}
       {[0, 1, 2].map((i) => (
         <span
           key={`line-${i}`}
-          className="absolute h-px bg-[#FF6B35]/30"
+          className="absolute h-px bg-[#2BA6A0]/30"
           style={{ top: `${30 + i * 16}%`, left: '35%', width: `${38 + i * 4}%`, transform: `rotate(${i * 18}deg)` }}
         />
       ))}
@@ -1226,7 +1252,7 @@ const STATUS_DOT_COLORS: Record<string, string> = {
   processing: 'bg-orange-400',
   analyzing: 'bg-rose-400',
   summarizing: 'bg-fuchsia-400',
-  done: 'bg-[#FF6B35]',
+  done: 'bg-[#2BA6A0]',
   failed: 'bg-red-400',
 }
 
@@ -1318,9 +1344,9 @@ function GeneratePanel({ videoId }: { videoId: string }) {
   }
 
   const types = [
-    { key: 'summary' as const, label: 'Summary', desc: 'Concise overview', icon: 'S', color: 'from-[#FF6B35] to-[#FF9A3D]' },
-    { key: 'notes' as const, label: 'Study Notes', desc: 'Structured key points', icon: 'N', color: 'from-[#D946EF] to-[#A855F7]' },
-    { key: 'quiz' as const, label: 'Quiz', desc: 'Test your knowledge', icon: 'Q', color: 'from-[#FF9A3D] to-[#D946EF]' },
+    { key: 'summary' as const, label: 'Summary', desc: 'Concise overview', icon: 'S', color: 'from-[#2BA6A0] to-[#D4A34A]' },
+    { key: 'notes' as const, label: 'Study Notes', desc: 'Structured key points', icon: 'N', color: 'from-[#5D6FE8] to-[#7788DE]' },
+    { key: 'quiz' as const, label: 'Quiz', desc: 'Test your knowledge', icon: 'Q', color: 'from-[#D4A34A] to-[#5D6FE8]' },
   ]
 
   return (
@@ -1343,7 +1369,7 @@ function GeneratePanel({ videoId }: { videoId: string }) {
                 </div>
               </div>
               {generating === t.key && (
-                <p className="mt-2 flex items-center gap-1.5 text-xs text-[#EA580C] dark:text-[#FF8A5C]">
+                <p className="mt-2 flex items-center gap-1.5 text-xs text-[#1D7773] dark:text-[#73CEC2]">
                   <Spinner /> Generating…
                 </p>
               )}
@@ -1361,7 +1387,7 @@ function GeneratePanel({ videoId }: { videoId: string }) {
               className={`mt-4 rounded-2xl p-4 ${tw.surface}`}
             >
               <div className="mb-2 flex items-center gap-2">
-                <span className="rounded-full border border-[#FF6B35]/40 bg-[#FF6B35]/10 px-2 py-0.5 text-xs font-medium uppercase text-[#C2410C] dark:border-[#FF6B35]/30 dark:bg-[#FF6B35]/[0.08] dark:text-[#FF8A5C]">{type}</span>
+                <span className="rounded-full border border-[#2BA6A0]/40 bg-[#2BA6A0]/10 px-2 py-0.5 text-xs font-medium uppercase text-[#155956] dark:border-[#2BA6A0]/30 dark:bg-[#2BA6A0]/[0.08] dark:text-[#73CEC2]">{type}</span>
               </div>
               <motion.div className="prose prose-sm max-w-none dark:prose-invert" initial="initial" animate="animate" variants={staggerContainer({ delay: 0.1 })}>
                 {renderContent(c.content)}
@@ -1381,7 +1407,7 @@ function GeneratePanel({ videoId }: { videoId: string }) {
                 initial={chatBubble('user').initial}
                 animate={chatBubble('user').animate}
                 transition={transitions.contentIn}
-                className="ml-auto max-w-[85%] self-end rounded-2xl border border-[#FF6B35]/40 bg-[#FF6B35]/80 text-white shadow-[0_4px_20px_rgb(255_107_53/0.35)] backdrop-blur-xl"
+                className="ml-auto max-w-[85%] self-end rounded-2xl border border-[#2BA6A0]/40 bg-[#2BA6A0]/80 text-white shadow-[0_4px_20px_rgb(43_166_160/0.35)] backdrop-blur-xl"
               >
                 {item.q}
               </motion.div>
@@ -1391,13 +1417,13 @@ function GeneratePanel({ videoId }: { videoId: string }) {
                 transition={transitions.contentIn}
                 className="flex max-w-[85%] gap-2.5 self-start"
               >
-                <span className="relative mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#D946EF] to-[#A855F7] shadow-[0_0_16px_rgb(217_70_239/0.7)]">
+                <span className="relative mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#5D6FE8] to-[#7788DE] shadow-[0_0_16px_rgb(93_111_232/0.7)]">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
                     <path d="M9.9 2.4 11 6l3.6 1.1-3.6 1.1L9.9 12l-1.1-3.8L5.2 7.1 8.8 6z" />
                     <path d="m17 14 .8 2.4 2.4.8-2.4.8L17 20.4l-.8-2.4-2.4-.8 2.4-.8z" />
                   </svg>
                 </span>
-                <div className="whitespace-pre-wrap rounded-2xl border border-[#D946EF]/25 bg-black/40 px-3.5 py-2.5 text-sm text-stone-200 shadow-[0_4px_24px_rgb(217_70_239/0.15)] backdrop-blur-xl">
+                <div className="whitespace-pre-wrap rounded-2xl border border-[#5D6FE8]/25 bg-black/40 px-3.5 py-2.5 text-sm text-stone-200 shadow-[0_4px_24px_rgb(93_111_232/0.15)] backdrop-blur-xl">
                   <Typewriter text={item.a} />
                 </div>
               </motion.div>
@@ -1410,13 +1436,13 @@ function GeneratePanel({ videoId }: { videoId: string }) {
               transition={transitions.contentIn}
               className="flex max-w-[85%] gap-2.5 self-start"
             >
-              <span className="mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#D946EF] to-[#A855F7] shadow-[0_0_16px_rgb(217_70_239/0.6)]">
+              <span className="mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#5D6FE8] to-[#7788DE] shadow-[0_0_16px_rgb(93_111_232/0.6)]">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
                   <path d="M9.9 2.4 11 6l3.6 1.1-3.6 1.1L9.9 12l-1.1-3.8L5.2 7.1 8.8 6z" />
                   <path d="m17 14 .8 2.4 2.4.8-2.4.8L17 20.4l-.8-2.4-2.4-.8 2.4-.8z" />
                 </svg>
               </span>
-              <div className="inline-flex items-center gap-1.5 rounded-2xl border border-white/10 bg-black/40 px-3.5 py-2.5 text-[#E879F9] backdrop-blur-xl">
+              <div className="inline-flex items-center gap-1.5 rounded-2xl border border-white/10 bg-black/40 px-3.5 py-2.5 text-[#8793F2] backdrop-blur-xl">
                 <TypingDots />
                 <span className="text-xs">Thinking…</span>
               </div>
@@ -1510,7 +1536,7 @@ function TabBtn({ active, onClick, children, disabled = false }: { active: boole
       {active && (
         <motion.span
           layoutId="main-tab-pill"
-          className="absolute inset-0 -z-10 rounded-xl bg-gradient-to-r from-[#FF6B35] to-[#D946EF] shadow-[0_6px_20px_rgb(217_70_239/0.35)]"
+          className="absolute inset-0 -z-10 rounded-xl bg-gradient-to-r from-[#2BA6A0] to-[#5D6FE8] shadow-[0_6px_20px_rgb(93_111_232/0.35)]"
           transition={{ type: 'spring', stiffness: 420, damping: 32 }}
         />
       )}
@@ -1532,7 +1558,7 @@ function ViewBtn({ active, onClick, children }: { active: boolean; onClick: () =
       {active && (
         <motion.span
           layoutId="graph-view-pill"
-          className="absolute inset-0 -z-10 rounded-xl bg-gradient-to-r from-[#FF6B35] to-[#D946EF] shadow-[0_4px_16px_rgb(217_70_239/0.3)]"
+          className="absolute inset-0 -z-10 rounded-xl bg-gradient-to-r from-[#2BA6A0] to-[#5D6FE8] shadow-[0_4px_16px_rgb(93_111_232/0.3)]"
           transition={{ type: 'spring', stiffness: 420, damping: 32 }}
         />
       )}
@@ -1583,8 +1609,8 @@ function NeuralBreakout({
         aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
         className={`absolute right-3 top-3 z-20 grid place-items-center transition-all duration-200 ease-out ${
           fullscreen
-            ? 'h-10 w-10 rounded-xl bg-gradient-to-r from-[#FF6B35] to-[#D946EF] text-white shadow-[0_0_20px_rgb(255_107_53/0.45)] hover:shadow-[0_0_28px_rgb(217_70_239/0.5)]'
-            : 'h-9 w-9 rounded-lg border border-black/10 bg-white/80 text-stone-600 backdrop-blur-md hover:bg-[#FF6B35] hover:text-white dark:border-white/10 dark:bg-stone-800/80 dark:text-stone-300'
+            ? 'h-10 w-10 rounded-xl bg-gradient-to-r from-[#2BA6A0] to-[#5D6FE8] text-white shadow-[0_0_20px_rgb(43_166_160/0.45)] hover:shadow-[0_0_28px_rgb(93_111_232/0.5)]'
+            : 'h-9 w-9 rounded-lg border border-black/10 bg-white/80 text-stone-600 backdrop-blur-md hover:bg-[#2BA6A0] hover:text-white dark:border-white/10 dark:bg-stone-800/80 dark:text-stone-300'
         }`}
       >
         {fullscreen ? <Minimize2 size={fullscreen ? 17 : 16} /> : <Maximize2 size={16} />}

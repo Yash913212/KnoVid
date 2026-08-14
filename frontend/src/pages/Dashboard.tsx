@@ -12,6 +12,10 @@ import Magnetic from '../components/Magnetic'
 import { formatTime } from '../utils'
 import { getResume } from '../lib/resume'
 import { FileText, Sparkles } from 'lucide-react'
+import { Button } from '../components/ui/Button'
+import { Badge } from '../components/ui/Badge'
+import { Segmented } from '../components/ui/Segmented'
+import { Skeleton } from '../components/ui/Skeleton'
 
 const FeatureShowcase = lazy(() => import('../components/FeatureShowcase'))
 
@@ -46,10 +50,10 @@ const HERO_WORDS: { t: string; accent?: boolean }[] = [
 const SOURCES = ['YouTube', 'Vimeo', 'X / Twitter', 'TikTok', 'Podcasts', 'Direct MP4']
 
 const PIPELINE = [
-  { label: 'Transcribe', desc: 'Speech → text in any language', color: 'from-[#FF6B35] to-[#FF9A3D]', glow: 'text-[#FF8A5C]', Icon: IconMic },
-  { label: 'Diarize', desc: 'Separate speakers & roles', color: 'from-[#FF8A5C] to-[#F43F5E]', glow: 'text-[#E879F9]', Icon: IconUsers },
-  { label: 'Graph', desc: 'Map concepts & connections', color: 'from-[#D946EF] to-[#A855F7]', glow: 'text-[#E879F9]', Icon: IconGraph },
-  { label: 'Generate', desc: 'Notes, quizzes & Q&A', color: 'from-[#FF6B35] to-[#D946EF]', glow: 'text-[#E879F9]', Icon: IconSparkles },
+  { label: 'Transcribe', desc: 'Speech → text in any language', color: 'from-[#2BA6A0] to-[#D4A34A]', glow: 'text-[#73CEC2]', Icon: IconMic },
+  { label: 'Diarize', desc: 'Separate speakers & roles', color: 'from-[#73CEC2] to-[#B75B6A]', glow: 'text-[#8793F2]', Icon: IconUsers },
+  { label: 'Graph', desc: 'Map concepts & connections', color: 'from-[#5D6FE8] to-[#7788DE]', glow: 'text-[#8793F2]', Icon: IconGraph },
+  { label: 'Generate', desc: 'Notes, quizzes & Q&A', color: 'from-[#2BA6A0] to-[#5D6FE8]', glow: 'text-[#8793F2]', Icon: IconSparkles },
 ]
 
 type FlowState = 'idle' | 'active' | 'done'
@@ -82,6 +86,8 @@ export default function Dashboard() {
   const [dragOver, setDragOver] = useState(false)
   const [error, setError] = useState('')
   const [query, setQuery] = useState('')
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'url' | 'upload'>('all')
   const [outputLang, setOutputLang] = useState('en')
   const [recentUpload, setRecentUpload] = useState<string | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -257,7 +263,11 @@ export default function Dashboard() {
 
   const activeVideos = videos.filter((v) => isProcessing(v.status))
   const doneVideos = videos.filter((v) => v.status === 'done' || v.status === 'failed')
-  const displayVideos = doneVideos.filter((v) => v.originalName.toLowerCase().includes(query.trim().toLowerCase()))
+  const mappedVideos = doneVideos.filter((v) => v.status === 'done')
+  const displayVideos = doneVideos
+    .filter((v) => v.originalName.toLowerCase().includes(query.trim().toLowerCase()))
+    .filter((v) => sourceFilter === 'all' || v.source === sourceFilter)
+  const transcriptMinutes = Math.round(mappedVideos.reduce((sum, v) => sum + v.duration, 0) / 60)
   const isEmpty = !loading && videos.length === 0
   const noSuccessful = !loading && !doneVideos.some((v) => v.status === 'done')
 
@@ -265,7 +275,7 @@ export default function Dashboard() {
   const flowStates = deriveFlow(activeMax, doneVideos.some((v) => v.status === 'done'))
 
   return (
-    <>
+    <div className="workspace-page dashboard-page">
       {isEmpty ? (
           <>
             <OnboardingHero onSummon={focusPortal} onHow={() => scrollTo('pipeline')} />
@@ -306,19 +316,19 @@ export default function Dashboard() {
                 initial={{ opacity: 0, y: 14 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={transitions.contentIn}
-                className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end"
+                className="flex flex-col justify-between gap-5 lg:flex-row lg:items-end"
               >
                 <div className="max-w-2xl">
-                  <p className="font-mono text-[10px] font-medium uppercase tracking-[0.24em] text-[#EA580C] dark:text-[#FF8A5C]">Your knowledge engine</p>
-                  <h1 className="font-display mt-2 text-3xl font-black tracking-tight text-stone-950 sm:text-4xl dark:text-white">
-                    Knowledge <span className="gradient-ember">Universes</span>
+                  <p className="eyebrow text-[#1D7773] dark:text-[#73CEC2]">Your knowledge engine</p>
+                  <h1 className="font-display mt-2.5 text-3xl font-bold tracking-tight text-stone-950 sm:text-4xl dark:text-white">
+                    Knowledge <span className="font-serif italic font-normal title-gradient">Universes</span>
                   </h1>
-                  <p className="mt-2 text-sm leading-6 text-stone-600 dark:text-stone-400">
+                  <p className="mt-2.5 text-sm leading-6 text-stone-600 dark:text-stone-400">
                     Transcripts, speakers, and graphs — query anything you've imported.
                   </p>
                 </div>
-                <div className="flex items-center gap-3">
-                  <label className="flex items-center gap-2 rounded-full border border-white/70 bg-white/70 px-3.5 py-2 text-sm text-stone-500 shadow-sm backdrop-blur-xl focus-within:ring-4 focus-within:ring-[#FF6B35]/15 dark:border-white/10 dark:bg-white/[0.05] dark:text-stone-400">
+                <div className="flex flex-wrap items-center gap-3">
+                  <label className="flex items-center gap-2 rounded-full border border-black/[0.08] bg-white/70 px-3.5 py-2 text-sm text-stone-500 shadow-[inset_0_1px_0_rgb(255_255_255/0.6)] backdrop-blur-xl focus-within:ring-4 focus-within:ring-[#2BA6A0]/15 dark:border-white/10 dark:bg-white/[0.05] dark:text-stone-400">
                     <IconSearch className="h-4 w-4" />
                     <input
                       aria-label="Search videos"
@@ -328,10 +338,27 @@ export default function Dashboard() {
                       className="w-36 bg-transparent text-sm text-stone-800 outline-none placeholder:text-stone-400 sm:w-44 dark:text-stone-100 dark:placeholder:text-stone-500"
                     />
                   </label>
-                  <span className="rounded-full border border-white/70 bg-white/70 px-3 py-1.5 font-mono text-xs text-stone-600 backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.05] dark:text-stone-300">
-                    {doneVideos.length} mapped
-                  </span>
+                  <Segmented
+                    value={viewMode}
+                    onChange={setViewMode}
+                    layoutId="view-mode-pill"
+                    options={[
+                      { value: 'grid', label: <IconGrid />, title: 'Grid view' },
+                      { value: 'list', label: <IconList />, title: 'List view' },
+                    ]}
+                  />
                 </div>
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ ...transitions.contentIn, delay: 0.08 }}
+                className="mt-6 inline-grid w-full max-w-xl grid-cols-3 divide-x divide-black/[0.06] overflow-hidden rounded-2xl border border-black/[0.08] bg-white/70 shadow-[inset_0_1px_0_rgb(255_255_255/0.6)] backdrop-blur-xl dark:divide-white/10 dark:border-white/10 dark:bg-white/[0.04]"
+              >
+                <StatCell label="Universes" value={String(videos.length)} accent="text-[#2BA6A0]" />
+                <StatCell label="Mapped" value={String(mappedVideos.length)} accent="text-[#5D6FE8]" />
+                <StatCell label="Transcript" value={`${transcriptMinutes}m`} accent="text-stone-950 dark:text-white" />
               </motion.div>
             </section>
 
@@ -376,20 +403,26 @@ export default function Dashboard() {
                 animate="show"
                 variants={staggerContainer()}
               >
-                <div className="mb-4 flex items-center gap-2.5">
-                  <span className="relative flex h-2.5 w-2.5">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#FF6B35] opacity-70" />
-                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[#FF6B35]" />
-                  </span>
-                  <h2 className="font-display text-lg font-bold text-stone-900 dark:text-stone-50">Now processing</h2>
-                  <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-stone-400 dark:text-stone-500">Awakening AI…</span>
-                </div>
-                <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                  <AnimatePresence mode="popLayout">
-                    {activeVideos.map((v) => (
-                      <KnowledgeCard key={v._id} video={v} onClick={() => navigate(`/video/${v._id}`)} onRetry={handleRetry} />
-                    ))}
-                  </AnimatePresence>
+                <div className="overflow-hidden rounded-3xl border border-black/[0.08] bg-white/70 shadow-[inset_0_1px_0_rgb(255_255_255/0.6)] backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.04]">
+                  <div className="flex items-center justify-between border-b border-black/[0.05] px-4 py-3 sm:px-5 dark:border-white/5">
+                    <div className="flex items-center gap-2.5">
+                      <span className="relative flex h-2 w-2">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#2BA6A0] opacity-70" />
+                        <span className="relative inline-flex h-2 w-2 rounded-full bg-[#2BA6A0]" />
+                      </span>
+                      <h2 className="font-display text-sm font-bold text-stone-900 dark:text-stone-50">
+                        Now <span className="font-serif italic font-normal title-gradient">processing</span>
+                      </h2>
+                    </div>
+                    <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-stone-400 dark:text-stone-500">Awakening AI…</span>
+                  </div>
+                  <div className="divide-y divide-black/[0.05] dark:divide-white/5">
+                    <AnimatePresence mode="popLayout">
+                      {activeVideos.map((v) => (
+                        <ProcessingRow key={v._id} video={v} onClick={() => navigate(`/video/${v._id}`)} />
+                      ))}
+                    </AnimatePresence>
+                  </div>
                 </div>
               </motion.section>
             )}
@@ -397,60 +430,84 @@ export default function Dashboard() {
             <section id="library" className="mx-auto max-w-6xl px-4 pb-24 pt-2">
               <div className="mb-4 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
                 <div>
-                  <p className="font-mono text-[10px] font-medium uppercase tracking-[0.24em] text-[#A21CAF] dark:text-[#E879F9]">Knowledge universe</p>
-                  <h2 className="font-display mt-1 text-2xl font-black text-stone-950 dark:text-stone-50">Imported sources</h2>
+                  <p className="eyebrow text-[#4555C4] dark:text-[#8793F2]">Knowledge universe</p>
+                  <h2 className="font-display mt-1.5 text-2xl font-bold text-stone-950 dark:text-stone-50">
+                    Imported <span className="font-serif italic font-normal title-gradient">sources</span>
+                  </h2>
+                </div>
+                <div className="flex gap-1.5">
+                  <Segmented
+                    value={sourceFilter}
+                    onChange={setSourceFilter}
+                    layoutId="source-filter-pill"
+                    size="sm"
+                    options={[
+                      { value: 'all', label: 'All' },
+                      { value: 'url', label: 'URLs' },
+                      { value: 'upload', label: 'Uploads' },
+                    ]}
+                  />
                 </div>
               </div>
 
               {loading ? (
                 <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                   {[1, 2, 3, 4, 5, 6].map((i) => (
-                    <div key={i} className="overflow-hidden rounded-3xl border border-white/70 bg-white/70 backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.03]">
-                      <div className="aspect-video w-full bg-stone-200 skeleton-shimmer dark:bg-stone-800" />
+                    <div key={i} className="overflow-hidden rounded-3xl border border-black/[0.06] bg-white/75 backdrop-blur-xl shadow-panel dark:border-white/10 dark:bg-white/[0.03]">
+                      <Skeleton className="aspect-video w-full" />
                       <div className="space-y-2 p-4">
-                        <div className="h-4 w-2/3 rounded bg-stone-200 skeleton-shimmer dark:bg-stone-800" />
-                        <div className="h-3 w-1/3 rounded bg-stone-200 skeleton-shimmer dark:bg-stone-800" />
+                        <Skeleton className="h-4 w-2/3" />
+                        <Skeleton className="h-3 w-1/3" />
                       </div>
                     </div>
                   ))}
                 </div>
               ) : displayVideos.length === 0 ? (
                 <motion.div
-                  className="rounded-3xl border border-dashed border-white/60 bg-white/50 px-6 py-14 text-center backdrop-blur-xl dark:border-white/15 dark:bg-white/[0.02]"
+                  className="rounded-3xl border border-dashed border-black/15 bg-white/50 px-6 py-14 text-center backdrop-blur-xl dark:border-white/15 dark:bg-white/[0.02]"
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={transitions.contentIn}
                 >
                   <p className="text-sm text-stone-500 dark:text-stone-400">
-                    {doneVideos.length === 0 ? 'Nothing mapped yet.' : `No universes match "${query}".`}
+                    {doneVideos.length === 0
+                      ? 'Nothing mapped yet.'
+                      : query.trim()
+                        ? `No universes match "${query}".`
+                        : sourceFilter !== 'all'
+                          ? 'No sources of that type yet.'
+                          : 'Nothing to show.'}
                   </p>
-                  <button
-                    type="button"
+                  <Button
                     onClick={focusPortal}
-                    className={`sheen-button mt-4 inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold bg-gradient-to-r from-[#FF6B35] to-[#D946EF] text-white shadow-[0_10px_30px_rgb(217 70 239/0.45)] transition-transform duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_16px_44px_rgb(217 70 239/0.6)] active:scale-[0.985]`}
+                    className="mt-4"
+                    icon={<IconSparkles className="h-4 w-4" />}
                   >
-                    <IconSparkles className="h-4 w-4" />
                     Summon knowledge
-                  </button>
+                  </Button>
                 </motion.div>
               ) : (
                 <motion.div
-                  className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3"
+                  className={viewMode === 'list' ? 'flex flex-col gap-3' : 'grid gap-5 sm:grid-cols-2 lg:grid-cols-3'}
                   initial="hidden"
                   animate="show"
                   variants={staggerContainer({ delay: 0.06 })}
                 >
                   <AnimatePresence mode="popLayout">
-                    {displayVideos.map((v) => (
-                      <KnowledgeCard key={v._id} video={v} onClick={() => navigate(`/video/${v._id}`)} onRetry={handleRetry} />
-                    ))}
+                    {displayVideos.map((v) =>
+                      viewMode === 'list' ? (
+                        <KnowledgeRow key={v._id} video={v} onClick={() => navigate(`/video/${v._id}`)} onRetry={handleRetry} />
+                      ) : (
+                        <KnowledgeCard key={v._id} video={v} onClick={() => navigate(`/video/${v._id}`)} onRetry={handleRetry} />
+                      )
+                    )}
                   </AnimatePresence>
                 </motion.div>
               )}
             </section>
           </>
         )}
-    </>
+    </div>
   )
 }
 
@@ -464,11 +521,10 @@ function OnboardingHero({ onSummon, onHow }: { onSummon: () => void; onHow: () =
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ ...transitions.contentIn, delay: 0.05 }}
-        className="font-mono text-[10px] font-medium uppercase tracking-[0.3em] text-[#EA580C] dark:text-[#FF8A5C]"
+        className="font-mono text-[10px] font-medium uppercase tracking-[0.3em] text-[#1D7773] dark:text-[#73CEC2]"
       >
         AI video intelligence workspace
-      </motion.p>
-      <RevealHeading />
+      </motion.p>      <RevealHeading />
       <motion.p
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -484,11 +540,11 @@ function OnboardingHero({ onSummon, onHow }: { onSummon: () => void; onHow: () =
         transition={{ ...transitions.contentIn, delay: 0.55 }}
         className="mt-6 flex flex-wrap items-center justify-center gap-2"
       >
-        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-stone-400 dark:text-stone-500">Any source · any language</span>
+        <span className="eyebrow text-stone-400 dark:text-stone-500">Any source · any language</span>
         {SOURCES.map((s) => (
-          <span key={s} className="rounded-full border border-white/70 bg-white/60 px-2.5 py-1 text-[11px] font-medium text-stone-600 backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.04] dark:text-stone-300">
+          <Badge key={s} className="text-[11px]">
             {s}
-          </span>
+          </Badge>
         ))}
       </motion.div>
 
@@ -499,23 +555,13 @@ function OnboardingHero({ onSummon, onHow }: { onSummon: () => void; onHow: () =
         className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row"
       >
         <Magnetic strength={0.25}>
-          <button
-            type="button"
-            onClick={onSummon}
-            className="sheen-button inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#FF6B35] to-[#D946EF] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_12px_36px_rgb(217 70 239/0.5)] transition-transform duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_18px_50px_rgb(217 70 239/0.65)] active:scale-[0.97]"
-          >
-            <IconSparkles className="h-4 w-4" />
+          <Button size="lg" onClick={onSummon} icon={<IconSparkles className="h-4 w-4" />}>
             Summon knowledge
-          </button>
+          </Button>
         </Magnetic>
-        <button
-          type="button"
-          onClick={onHow}
-          className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/60 px-4 py-2.5 text-sm font-medium text-stone-700 backdrop-blur-xl transition-colors hover:border-[#FF6B35]/70 hover:text-[#C2410C] dark:border-white/10 dark:bg-white/[0.05] dark:text-stone-300 dark:hover:text-[#FF8A5C]"
-        >
+        <Button variant="secondary" size="lg" onClick={onHow} icon={<IconArrowDown className="h-4 w-4" />}>
           See how it works
-          <IconArrowDown className="h-4 w-4" />
-        </button>
+        </Button>
       </motion.div>
     </section>
   )
@@ -524,7 +570,7 @@ function OnboardingHero({ onSummon, onHow }: { onSummon: () => void; onHow: () =
 function RevealHeading() {
   return (
     <motion.h1
-      className="font-display mx-auto mt-4 max-w-3xl text-5xl font-black leading-[0.98] tracking-tight text-stone-950 sm:text-6xl dark:text-white"
+      className="font-display mx-auto mt-4 max-w-3xl text-5xl font-bold leading-[0.98] tracking-tight text-stone-950 sm:text-6xl dark:text-white"
       initial="hidden"
       animate="show"
       variants={{
@@ -536,7 +582,7 @@ function RevealHeading() {
         <Fragment key={w.t}>
           {i > 0 && ' '}
           <motion.span
-            className={`inline-block ${w.accent ? 'gradient-ember' : ''}`}
+            className={`inline-block ${w.accent ? 'font-serif italic font-normal title-gradient' : ''}`}
             variants={{
               hidden: { opacity: 0, y: 22, filter: 'blur(6px)' },
               show: { opacity: 1, y: 0, filter: 'blur(0px)', transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] } },
@@ -571,8 +617,8 @@ function GraphConstellation() {
       <svg viewBox="0 0 560 280" className="h-auto w-full max-w-3xl" fill="none">
         <defs>
           <linearGradient id="const-edge" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#FF6B35" stopOpacity="0.5" />
-            <stop offset="100%" stopColor="#d946ef" stopOpacity="0.5" />
+            <stop offset="0%" stopColor="#2BA6A0" stopOpacity="0.5" />
+            <stop offset="100%" stopColor="#5D6FE8" stopOpacity="0.5" />
           </linearGradient>
         </defs>
         {edges.map(([a, b], i) => (
@@ -590,7 +636,7 @@ function GraphConstellation() {
           <motion.circle
             key={i}
             cx={n.x} cy={n.y} r={n.r}
-            fill={i === 0 ? '#FF8A5C' : '#E879F9'}
+            fill={i === 0 ? '#73CEC2' : '#8793F2'}
             initial={{ scale: 0, opacity: 0 }}
             animate={{ scale: 1, opacity: i === 0 ? 0.9 : 0.55 }}
             transition={{ type: 'spring', stiffness: 300, damping: 20, delay: 0.25 + i * 0.06 }}
@@ -599,7 +645,7 @@ function GraphConstellation() {
         ))}
         <motion.circle
           cx={nodes[0].x} cy={nodes[0].y} r={26}
-          fill="rgb(217 70 239 / 0.14)"
+          fill="rgb(93 111 232 / 0.14)"
           initial={{ scale: 0.6, opacity: 0 }}
           animate={{ scale: [0.6, 1.08, 0.9], opacity: 0.8 }}
           transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
@@ -683,12 +729,12 @@ function MagicUploadPortal(props: PortalProps) {
             }
           }}
           animate={{ scale: dragOver ? 1.1 : busy ? 1.04 : 1 }}
-          transition={{ type: 'spring', stiffness: 220, damping: 18 }}
-          className={`relative grid aspect-square w-60 cursor-pointer place-items-center overflow-hidden rounded-full border border-white/10 bg-black/40 backdrop-blur-2xl shadow-[0_0_40px_10px_rgba(217,70,239,0.15)] animate-[pulse_4s_ease-in-out_infinite] transition-all duration-500 sm:w-72 hover:shadow-[0_0_60px_15px_rgba(255,107,53,0.3)] hover:scale-105 dark:border-white/10 dark:bg-[#0b0b10]/85 ${
+          transition={{ type: 'spring', stiffness: 180, damping: 24 }}
+          className={`portal-core relative grid aspect-square w-60 cursor-pointer place-items-center overflow-hidden rounded-full border border-white/10 bg-black/40 backdrop-blur-2xl shadow-[0_0_40px_10px_rgba(93,111,232,0.15)] transition-[box-shadow,transform,border-color] duration-500 sm:w-72 hover:shadow-[0_0_60px_15px_rgba(43,166,160,0.3)] hover:scale-[1.025] dark:border-white/10 dark:bg-[#0b0b10]/85 ${
             dragOver ? 'portal-breathe-strong' : ''
           } ${transmuting || uploading ? 'portal-ingest-disc' : ''}`}
         >
-          <div className="pointer-events-none absolute inset-0 rounded-full opacity-70 dark:bg-[radial-gradient(circle_at_50%_50%,rgb(255 107 53/0.16),transparent_65%)]" />
+          <div className="pointer-events-none absolute inset-0 rounded-full opacity-70 dark:bg-[radial-gradient(circle_at_50%_50%,rgb(43 166 160/0.16),transparent_65%)]" />
 
           {uploading ? (
             <div className="flex flex-col items-center gap-2 px-6 text-center">
@@ -703,7 +749,7 @@ function MagicUploadPortal(props: PortalProps) {
                 <motion.span
                   animate={{ scale: [1, 1.14, 1], opacity: [0.7, 1, 0.7] }}
                   transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }}
-                  className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-[#FF6B35] to-[#D946EF] text-white shadow-[0_0_24px_rgb(217 70 239/0.8)]"
+                  className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-[#2BA6A0] to-[#5D6FE8] text-white shadow-[0_0_24px_rgb(93 111 232/0.8)]"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>
                 </motion.span>
@@ -718,7 +764,7 @@ function MagicUploadPortal(props: PortalProps) {
                 <motion.span
                   animate={{ scale: [1, 1.14, 1], opacity: [0.7, 1, 0.7] }}
                   transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }}
-                  className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-[#FF6B35] to-[#D946EF] text-white shadow-[0_0_24px_rgb(217 70 239/0.8)]"
+                  className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-[#2BA6A0] to-[#5D6FE8] text-white shadow-[0_0_24px_rgb(93 111 232/0.8)]"
                 >
                   <IconSparkles className="h-4 w-4" />
                 </motion.span>
@@ -731,14 +777,14 @@ function MagicUploadPortal(props: PortalProps) {
                   e.stopPropagation()
                   onCancel()
                 }}
-                className="mt-1 rounded-full border border-white/60 bg-white/60 px-3 py-1 text-[11px] font-medium text-stone-600 backdrop-blur transition-colors hover:text-[#EA580C] dark:border-white/10 dark:bg-white/[0.06] dark:text-stone-400 dark:hover:text-[#FF8A5C]"
+                className="mt-1 rounded-full border border-white/60 bg-white/60 px-3 py-1 text-[11px] font-medium text-stone-600 backdrop-blur transition-colors hover:text-[#1D7773] dark:border-white/10 dark:bg-white/[0.06] dark:text-stone-400 dark:hover:text-[#73CEC2]"
               >
                 Change source
               </button>
             </div>
           ) : (
             <div className="flex flex-col items-center gap-1 px-6 text-center">
-              <span className="grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-[#FF6B35] to-[#D946EF] text-white shadow-[0_0_34px_rgb(217 70 239/0.6)]">
+              <span className="grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-[#2BA6A0] to-[#5D6FE8] text-white shadow-[0_0_34px_rgb(93 111 232/0.6)]">
                 <IconSparkles className="h-7 w-7" />
               </span>
               <p className="font-display mt-2 text-xl font-black text-stone-900 dark:text-white">Summon Knowledge</p>
@@ -767,21 +813,20 @@ function MagicUploadPortal(props: PortalProps) {
                   ref={urlInputRef}
                   type="url"
                   placeholder="Paste any video link — YouTube, Vimeo, direct MP4…"
-                  className="w-full rounded-xl border border-white/10 bg-black/40 px-3.5 py-2.5 text-sm text-stone-100 placeholder:text-stone-400 backdrop-blur-xl focus:border-[#FF6B35] focus:outline-none focus:shadow-[0_2px_10px_-3px_rgba(255,107,53,0.5)] focus:ring-0 dark:border-white/10 dark:bg-white/[0.05] dark:text-stone-100 dark:placeholder:text-stone-500"
+                  className="w-full rounded-xl border border-white/10 bg-black/40 px-3.5 py-2.5 text-sm text-stone-100 placeholder:text-stone-400 backdrop-blur-xl focus:border-[#2BA6A0] focus:outline-none focus:shadow-[0_2px_10px_-3px_rgba(43,166,160,0.5)] focus:ring-0 dark:border-white/10 dark:bg-white/[0.05] dark:text-stone-100 dark:placeholder:text-stone-500"
                   value={url}
                   onChange={(e) => onUrlChange(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && onTransmute()}
                 />
               </div>
         <Magnetic strength={0.25}>
-          <button
-            type="button"
+          <Button
             onClick={onTransmute}
             disabled={!url.trim() || busy}
-            className="sheen-button rounded-full bg-gradient-to-r from-[#FF6B35] to-[#D946EF] px-5 py-2.5 text-sm font-bold text-white shadow-lg transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_0_25px_5px_rgba(255,107,53,0.4)] active:scale-[0.97] disabled:opacity-40 disabled:shadow-none disabled:hover:translate-y-0"
+            className="shadow-lg"
           >
             Transmute
-          </button>
+          </Button>
         </Magnetic>
             </div>
             <p className="mt-2 text-center text-xs text-stone-500 dark:text-stone-500">
@@ -812,8 +857,8 @@ function MagicUploadPortal(props: PortalProps) {
                 onClick={() => onLangChange(l.code)}
                 className={`rounded-full border px-3 py-1 text-xs font-medium transition-all duration-200 ${
                   active
-                    ? 'border-transparent bg-gradient-to-r from-[#FF6B35] to-[#D946EF] text-white shadow-[0_0_16px_rgb(217 70 239/0.45)]'
-                    : 'border-white/70 bg-white/60 text-stone-600 hover:border-[#FF6B35]/70 hover:text-[#C2410C] dark:border-white/10 dark:bg-white/[0.04] dark:text-stone-400 dark:hover:text-[#FF8A5C]'
+                    ? 'border-transparent bg-gradient-to-r from-[#2BA6A0] to-[#5D6FE8] text-white shadow-[0_0_16px_rgb(93 111 232/0.45)]'
+                    : 'border-white/70 bg-white/60 text-stone-600 hover:border-[#2BA6A0]/70 hover:text-[#155956] dark:border-white/10 dark:bg-white/[0.04] dark:text-stone-400 dark:hover:text-[#73CEC2]'
                 }`}
               >
                 {l.label}
@@ -836,8 +881,8 @@ function ProgressRing({ percent }: { percent: number }) {
     <svg width="84" height="84" viewBox="0 0 84 84" className="-rotate-90">
       <defs>
         <linearGradient id="portal-progress" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#FF6B35" />
-          <stop offset="100%" stopColor="#d946ef" />
+          <stop offset="0%" stopColor="#2BA6A0" />
+          <stop offset="100%" stopColor="#5D6FE8" />
         </linearGradient>
       </defs>
       <circle cx="42" cy="42" r={r} fill="none" stroke="currentColor" strokeWidth="5" className="text-stone-200 dark:text-white/10" />
@@ -868,7 +913,7 @@ function PortalParticles() {
       {particles.map((p, i) => (
         <motion.span
           key={i}
-          className="absolute rounded-full bg-gradient-to-br from-[#FF8A5C] to-[#D946EF] shadow-[0_0_12px_rgb(217 70 239/0.9)]"
+          className="absolute rounded-full bg-gradient-to-br from-[#73CEC2] to-[#5D6FE8] shadow-[0_0_12px_rgb(93 111 232/0.9)]"
           style={{ width: p.size, height: p.size }}
           initial={{ x: Math.cos(p.angle) * p.radius, y: Math.sin(p.angle) * p.radius, opacity: 0.9, scale: 1 }}
           animate={{ x: Math.cos(p.angle) * 16, y: Math.sin(p.angle) * 16, opacity: 0, scale: 0.35 }}
@@ -903,13 +948,13 @@ function ValuePipeline({ flowStates, heading }: { flowStates: FlowState[]; headi
               key={step.label}
               variants={staggerItem(fadeUpLift)}
               whileHover={{ y: -4 }}
-              className={`group shine-card relative overflow-hidden rounded-2xl border p-4 backdrop-blur-xl transition-shadow duration-300 ${
+              className={`group shine-card relative overflow-hidden rounded-2xl border p-4 backdrop-blur-xl shadow-[inset_0_1px_0_rgb(255_255_255/0.5)] transition-shadow duration-300 ${
                 state === 'active'
-                  ? 'border-[#FF6B35]/60 bg-white/70 shadow-[0_0_30px_rgb(255 107 53/0.18)] dark:border-[#D946EF]/40 dark:bg-white/[0.05]'
+                  ? 'border-[#2BA6A0]/50 bg-white/80 shadow-[0_0_30px_rgb(43 166 160/0.16),inset_0_1px_0_rgb(255_255_255/0.6)] dark:border-[#5D6FE8]/40 dark:bg-white/[0.05]'
                   : state === 'done'
-                    ? 'border-[#FF6B35]/40 bg-white/70 dark:border-[#D946EF]/40 dark:bg-white/[0.04]'
-                    : 'border-white/70 bg-white/60 dark:border-white/10 dark:bg-white/[0.03]'
-              } hover:shadow-[0_18px_50px_rgb(15_23_42/0.18)] dark:hover:shadow-[0_18px_50px_rgb(0_0_0/0.4)]`}
+                    ? 'border-black/[0.05] bg-white/75 dark:border-white/10 dark:bg-white/[0.04]'
+                    : 'border-black/[0.05] bg-white/70 dark:border-white/10 dark:bg-white/[0.03]'
+              } hover:shadow-[0_18px_50px_rgb(15_23_42/0.14)] dark:hover:shadow-[0_18px_50px_rgb(0_0_0/0.4)]`}
             >
               <div className="flex items-center gap-2.5">
                 <span
@@ -925,7 +970,7 @@ function ValuePipeline({ flowStates, heading }: { flowStates: FlowState[]; headi
                       animate={{ scale: 1, rotate: 0, opacity: 1 }}
                       exit={{ scale: 0.4, opacity: 0 }}
                       transition={transitions.micro}
-                      className="ml-auto grid h-6 w-6 place-items-center rounded-full bg-[#FF6B35] text-white shadow-[0_0_14px_rgb(255_107_53/0.6)]"
+                      className="ml-auto grid h-6 w-6 place-items-center rounded-full bg-[#2BA6A0] text-white shadow-[0_0_14px_rgb(43_166_160/0.6)]"
                     >
                       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
                         <path d="M20 6 9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
@@ -938,7 +983,7 @@ function ValuePipeline({ flowStates, heading }: { flowStates: FlowState[]; headi
                       animate={{ scale: 1, opacity: 1 }}
                       exit={{ scale: 0.4, opacity: 0 }}
                       transition={transitions.micro}
-                      className="ml-auto grid h-6 w-6 place-items-center rounded-full bg-gradient-to-br from-[#FF6B35] to-[#D946EF] shadow-[0_0_16px_rgb(255 107 53/0.7)]"
+                      className="ml-auto grid h-6 w-6 place-items-center rounded-full bg-gradient-to-br from-[#2BA6A0] to-[#5D6FE8] shadow-[0_0_16px_rgb(43 166 160/0.7)]"
                     >
                       <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-white" />
                     </motion.span>
@@ -951,7 +996,7 @@ function ValuePipeline({ flowStates, heading }: { flowStates: FlowState[]; headi
                 <div
                   className={`h-full rounded-full transition-[width] duration-500 ease-out ${
                     state === 'done'
-                      ? 'w-full bg-gradient-to-r from-[#D946EF] to-[#FF6B35]'
+                      ? 'w-full bg-gradient-to-r from-[#5D6FE8] to-[#2BA6A0]'
                       : state === 'active'
                         ? `bar-sweep w-2/3 bg-gradient-to-r ${step.color}`
                         : 'w-1/4 bg-stone-300 dark:bg-white/15'
@@ -981,42 +1026,78 @@ function thumbGrad(id: string): string {
   return THUMB_GRADS[h % THUMB_GRADS.length]
 }
 
-function MagicPill({ tint, children }: { tint: 'ember' | 'orchid'; children: React.ReactNode }) {
-  const cls = {
-    ember: 'border-[#FF6B35]/50 bg-[#FF6B35]/10 text-[#C2410C] dark:border-[#FF6B35]/30 dark:text-[#FF8A5C]',
-    orchid: 'border-[#D946EF]/50 bg-[#D946EF]/10 text-[#A21CAF] dark:border-[#D946EF]/30 dark:text-[#E879F9]',
-  }[tint]
-  return (
-    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold backdrop-blur-md ${cls}`}>
-      {children}
-    </span>
-  )
-}
-
-// Glassy "reveal" pill for finished instructions — the star spark is always Tangerine.
-function DonePill({ icon, label, color, delay }: { icon: React.ReactNode; label: string; color: string; delay?: number }) {
-  return (
-    <motion.span
-      initial={{ opacity: 0, scale: 0.5, y: 8 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      transition={{ type: 'spring', stiffness: 420, damping: 22, delay }}
-      className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-xs font-medium backdrop-blur-xl"
-      style={{ color }}
-    >
-      {icon}
-      {label}
-    </motion.span>
-  )
-}
-
 // Progress fill % per processing step, so the bar visibly "fills up".
 const PROGRESS_BY_STATUS: Record<VideoStatus, number> = {
   queued: 10,
   downloading: 30,
   processing: 62,
   analyzing: 88,
+  summarizing: 94,
   done: 100,
   failed: 0,
+}
+
+// Hairline-divided stat cells in the workspace header strip.
+function StatCell({ label, value, accent }: { label: string; value: string; accent: string }) {
+  return (
+    <div className="px-4 py-3 sm:px-5">
+      <p className={`font-display tabular text-xl font-bold tracking-tight sm:text-2xl ${accent}`}>{value}</p>
+      <p className="eyebrow mt-0.5 text-stone-400 dark:text-stone-500">{label}</p>
+    </div>
+  )
+}
+
+// Compact row inside the "Now processing" rail — calm, no giant cards.
+function ProcessingRow({ video, onClick }: { video: Video; onClick: () => void }) {
+  const pct = PROGRESS_BY_STATUS[video.status]
+  return (
+    <motion.div
+      variants={staggerItem(scaleFade)}
+      layout
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onClick()
+        }
+      }}
+      className="group flex cursor-pointer items-center gap-3.5 px-4 py-3 transition-colors hover:bg-white/60 sm:px-5 dark:hover:bg-white/[0.04]"
+    >
+      <div className="relative h-11 w-[4.5rem] shrink-0 overflow-hidden rounded-xl">
+        <div className={`absolute inset-0 bg-gradient-to-br ${thumbGrad(video._id)}`}>
+          <div className="absolute inset-0 grid place-items-center opacity-60">
+            <ThumbWave />
+          </div>
+        </div>
+        {video.thumbnail && (
+          <img src={video.thumbnail} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
+        )}
+        <div className="absolute inset-0 skeleton-shimmer opacity-30" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="font-display truncate text-sm font-bold text-stone-900 dark:text-stone-100">{video.originalName}</p>
+        <div className="mt-1.5 flex items-center gap-3">
+          <div className="h-1 w-full max-w-[12rem] overflow-hidden rounded-full bg-stone-200/80 dark:bg-white/10">
+            <motion.div
+              className="bar-sweep h-full rounded-full bg-gradient-to-r from-[#2BA6A0] via-[#D4A34A] to-[#5D6FE8]"
+              initial={{ width: '8%' }}
+              animate={{ width: `${pct}%` }}
+              transition={{ duration: 0.8, ease: 'easeOut' }}
+            />
+          </div>
+          <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-stone-400 dark:text-stone-500">
+            {STATUS_LABELS[video.status]}
+          </span>
+        </div>
+      </div>
+      <Badge tone="tangerine" className="shrink-0 hidden sm:inline-flex">
+        <IconSparkles className="h-3 w-3" />
+        Mapping…
+      </Badge>
+    </motion.div>
+  )
 }
 
 function KnowledgeCard({ video, onClick, onRetry }: { video: Video; onClick: () => void; onRetry: (id: string) => void }) {
@@ -1081,14 +1162,14 @@ function KnowledgeCard({ video, onClick, onRetry }: { video: Video; onClick: () 
         animate={{ scale: 1 }}
         transition={{ type: 'spring', stiffness: 380, damping: 15 }}
         whileHover={failed ? { scale: 1.01 } : { y: -6, scale: 1.01 }}
-        className={`group relative cursor-pointer overflow-hidden rounded-3xl border bg-white/75 backdrop-blur-xl transition-[border-color,box-shadow,background-color] duration-300 hover:bg-white/95 dark:bg-white/[0.03] dark:border-white/10 dark:backdrop-blur-xl dark:shadow-2xl dark:hover:bg-white/[0.06] ${
+        className={`group relative cursor-pointer overflow-hidden rounded-3xl border bg-white/75 backdrop-blur-xl shadow-[inset_0_1px_0_rgb(255_255_255/0.6)] transition-[border-color,box-shadow,background-color] duration-300 hover:bg-white/95 dark:bg-white/[0.03] dark:border-white/10 dark:backdrop-blur-xl dark:shadow-[inset_0_1px_0_rgb(255_255_255/0.05)] dark:hover:bg-white/[0.06] ${
           failed
             ? 'border-red-500/20 shadow-[0_0_25px_-6px_rgba(239,68,68,0.2)] dark:border-red-500/25 dark:hover:shadow-[0_0_30px_-10px_rgba(239,68,68,0.5)]'
             : processing
-              ? 'border-[#D946EF]/30 shadow-[0_0_30px_-5px_rgba(217,70,239,0.4)] animate-pulse dark:border-[#D946EF]/30 dark:shadow-[0_0_38px_-6px_rgba(217,70,239,0.5)]'
+              ? 'border-[#5D6FE8]/30 shadow-[0_0_30px_-5px_rgba(93,111,232,0.4)] animate-pulse dark:border-[#5D6FE8]/30 dark:shadow-[0_0_38px_-6px_rgba(93,111,232,0.5)]'
               : done
-                ? 'border-white/10 shadow-[0_18px_60px_rgba(15,23,42,0.14)] hover:shadow-[0_0_30px_-10px_rgba(255,107,53,0.8)] dark:border-white/10 dark:shadow-[0_18px_60px_rgba(0,0,0,0.4)]'
-                : 'border-white/10 shadow-[0_18px_60px_rgba(15,23,42,0.14)]'
+                ? 'border-black/[0.06] shadow-[0_18px_60px_rgba(15,23,42,0.10)] hover:shadow-[0_0_30px_-10px_rgba(43,166,160,0.8)] dark:border-white/10 dark:shadow-[0_18px_60px_rgba(0,0,0,0.4)]'
+                : 'border-black/[0.06] shadow-[0_18px_60px_rgba(15,23,42,0.10)]'
         } dark:hover:shadow-[0_36px_100px_rgb(0_0_0/0.6)]`}
       >
         <div
@@ -1096,10 +1177,10 @@ function KnowledgeCard({ video, onClick, onRetry }: { video: Video; onClick: () 
           className="pointer-events-none absolute inset-0 z-20 rounded-3xl opacity-0 transition-opacity duration-300"
           style={{
             opacity: spot.on ? 1 : 0,
-            background: `radial-gradient(420px circle at ${spot.x}% ${spot.y}%, rgb(217 70 239 / 0.10), transparent 62%)`,
+            background: `radial-gradient(420px circle at ${spot.x}% ${spot.y}%, rgb(93 111 232 / 0.10), transparent 62%)`,
           }}
         />
-        <div className="pointer-events-none absolute -inset-px z-10 rounded-3xl opacity-0 transition-opacity duration-300 group-hover:opacity-100 dark:bg-[radial-gradient(120%_80%_at_50%_0%,rgb(217 70 239/0.18),transparent_60%)]" />
+        <div className="pointer-events-none absolute -inset-px z-10 rounded-3xl opacity-0 transition-opacity duration-300 group-hover:opacity-100 dark:bg-[radial-gradient(120%_80%_at_50%_0%,rgb(93 111 232/0.18),transparent_60%)]" />
 
         <div className="relative aspect-video overflow-hidden">
           <div className={`absolute inset-0 bg-gradient-to-br transition-transform duration-500 group-hover:scale-[1.04] ${thumbGrad(video._id)}`}>
@@ -1126,7 +1207,7 @@ function KnowledgeCard({ video, onClick, onRetry }: { video: Video; onClick: () 
           {processing && (
             <div className="absolute inset-x-0 bottom-0 h-1 z-20">
               <motion.div
-                className="bar-sweep h-full bg-gradient-to-r from-[#FF6B35] via-[#FF9A3D] to-[#D946EF]"
+                className="bar-sweep h-full bg-gradient-to-r from-[#2BA6A0] via-[#D4A34A] to-[#5D6FE8]"
                 initial={{ width: '8%' }}
                 animate={{ width: `${barWidth}%` }}
                 transition={{ duration: 0.8, ease: 'easeOut' }}
@@ -1141,7 +1222,7 @@ function KnowledgeCard({ video, onClick, onRetry }: { video: Video; onClick: () 
                 initial={{ opacity: 0, y: -8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={transitions.contentIn}
-                className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-xs font-medium text-[#FF6B35] backdrop-blur-xl"
+                className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-xs font-medium text-[#2BA6A0] backdrop-blur-xl"
               >
                 <Sparkles size={14} />
                 Graph Mapped
@@ -1150,7 +1231,7 @@ function KnowledgeCard({ video, onClick, onRetry }: { video: Video; onClick: () 
                 initial={{ opacity: 0, y: -8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ ...transitions.contentIn, delay: 0.08 }}
-                className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-xs font-medium text-[#D946EF] backdrop-blur-xl"
+                className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-xs font-medium text-[#5D6FE8] backdrop-blur-xl"
               >
                 <FileText size={14} />
                 Summarized
@@ -1159,9 +1240,14 @@ function KnowledgeCard({ video, onClick, onRetry }: { video: Video; onClick: () 
           )}
           {failed && (
             <span className="absolute left-3 top-3">
-              <MagicPill tint="orchid">✕ Invocation failed</MagicPill>
+              <Badge tone="orchid">✕ Invocation failed</Badge>
             </span>
           )}
+
+          <span className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-black/30 px-2.5 py-1 text-[11px] font-semibold text-white/90 backdrop-blur-md">
+            {video.source === 'url' ? <IconLink className="h-3 w-3" /> : <IconUpload className="h-3 w-3" />}
+            {video.source === 'url' ? 'URL' : 'Upload'}
+          </span>
 
           <div className="absolute inset-0 grid place-items-center bg-black/0 transition-colors duration-300 group-hover:bg-black/40">
             <span className="grid h-12 w-12 scale-75 place-items-center rounded-full bg-white/20 text-white opacity-0 backdrop-blur-sm transition-all duration-300 group-hover:scale-100 group-hover:opacity-100">
@@ -1177,7 +1263,7 @@ function KnowledgeCard({ video, onClick, onRetry }: { video: Video; onClick: () 
                   <motion.span
                     animate={{ scale: [1, 1.12, 1], opacity: [0.75, 1, 0.75] }}
                     transition={{ duration: 1.3, repeat: Infinity, ease: 'easeInOut' }}
-                    className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-[#FF6B35] to-[#D946EF] text-white shadow-[0_0_20px_rgb(217 70 239/0.7)]"
+                    className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-[#2BA6A0] to-[#5D6FE8] text-white shadow-[0_0_20px_rgb(93 111 232/0.7)]"
                   >
                     <IconSparkles className="h-3.5 w-3.5" />
                   </motion.span>
@@ -1188,27 +1274,34 @@ function KnowledgeCard({ video, onClick, onRetry }: { video: Video; onClick: () 
             </div>
           )}
 
-          {resume != null && resume > 15 && (
+          {resume != null && resume > 15 ? (
             <span className="absolute bottom-3 left-3 inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-black/40 px-2 py-0.5 font-mono text-[10px] font-medium text-white backdrop-blur-md">
               <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86a1 1 0 0 0-1.5.86z" /></svg>
               Resume {formatTime(resume)}
+            </span>
+          ) : video.duration > 0 && (
+            <span className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-black/40 px-2 py-0.5 font-mono text-[10px] font-medium text-white backdrop-blur-md">
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 7v5l3 3" />
+              </svg>
+              {formatTime(video.duration)}
             </span>
           )}
         </div>
 
         <div className="relative z-10 p-4">
-          <p className="font-display truncate text-sm font-bold text-stone-900 transition-colors group-hover:text-[#C2410C] dark:text-stone-100 dark:group-hover:text-[#FF8A5C]">{video.originalName}</p>
-          <p className="mt-0.5 text-xs text-stone-500 dark:text-stone-400">
-            {video.source === 'url' ? 'URL' : 'Upload'} &middot; {new Date(video.createdAt).toLocaleDateString()}
-            {video.duration > 0 && ` · ${Math.round(video.duration)}s`}
+          <p className="font-display truncate text-sm font-bold text-stone-900 transition-colors group-hover:text-[#155956] dark:text-stone-100 dark:group-hover:text-[#73CEC2]">{video.originalName}</p>
+          <p className="mt-1 flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400">
+            {video.source === 'url' ? <IconLink className="h-3 w-3" /> : <IconUpload className="h-3 w-3" />}
+            <span>{new Date(video.createdAt).toLocaleDateString()}</span>
+            {video.duration > 0 && (
+              <>
+                <span aria-hidden className="text-stone-300 dark:text-stone-600">·</span>
+                <span className="font-mono">{formatTime(video.duration)}</span>
+              </>
+            )}
           </p>
-
-          {done && (
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              <DonePill icon={<Sparkles size={14} />} label="Graph Mapped" color="#FF6B35" delay={0.05} />
-              <DonePill icon={<FileText size={14} />} label="Summarized" color="#D946EF" delay={0.16} />
-            </div>
-          )}
 
           {failed && (
             <div className="mt-3">
@@ -1217,20 +1310,23 @@ function KnowledgeCard({ video, onClick, onRetry }: { video: Video; onClick: () 
                   {video.errorMessage.split('\n')[0]}
                 </p>
               )}
-              <button
-                type="button"
+              <Button
+                variant="danger"
+                size="sm"
+                radius="full"
                 onClick={(e) => {
                   e.stopPropagation()
                   onRetry(video._id)
                 }}
-                className="inline-flex items-center gap-1.5 rounded-full border border-red-400/30 px-3 py-1 text-[11px] font-semibold text-red-300 transition-all duration-200 hover:border-red-400/60 hover:bg-red-400/10 hover:text-red-200 dark:border-red-400/25 dark:text-red-300/90"
+                icon={
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 12a9 9 0 1 0 2.6-6.4" />
+                    <path d="M3 4v5h5" />
+                  </svg>
+                }
               >
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M3 12a9 9 0 1 0 2.6-6.4" />
-                  <path d="M3 4v5h5" />
-                </svg>
                 Retry Invocation
-              </button>
+              </Button>
             </div>
           )}
         </div>
@@ -1239,9 +1335,107 @@ function KnowledgeCard({ video, onClick, onRetry }: { video: Video; onClick: () 
   )
 }
 
+// Dense list view — thumbnail on the left, metadata flowing right.
+function KnowledgeRow({ video, onClick, onRetry }: { video: Video; onClick: () => void; onRetry: (id: string) => void }) {
+  const failed = video.status === 'failed'
+  const done = video.status === 'done'
+  const resume = done ? getResume(video._id) : null
+
+  return (
+    <motion.div
+      variants={staggerItem(scaleFade)}
+      layout
+      whileHover={{ y: -2 }}
+      role="button"
+      tabIndex={0}
+      aria-label={`Open ${video.originalName}`}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onClick()
+        }
+      }}
+      className={`group flex cursor-pointer items-center gap-4 overflow-hidden rounded-2xl border bg-white/70 p-3 shadow-[inset_0_1px_0_rgb(255_255_255/0.6)] backdrop-blur-xl transition-[border-color,box-shadow,background-color] duration-300 hover:bg-white/95 dark:border-white/10 dark:bg-white/[0.03] dark:shadow-[inset_0_1px_0_rgb(255_255_255/0.05)] dark:hover:bg-white/[0.06] ${
+        failed ? 'border-red-500/20 dark:border-red-500/25' : done ? 'border-black/[0.06] hover:shadow-[0_0_30px_-10px_rgba(43,166,160,0.7)] dark:border-white/10' : 'border-black/[0.06] dark:border-white/10'
+      } dark:hover:shadow-[0_18px_50px_rgb(0_0_0/0.5)]`}
+    >
+      <div className="relative h-14 w-24 shrink-0 overflow-hidden rounded-xl">
+        <div className={`absolute inset-0 bg-gradient-to-br ${thumbGrad(video._id)}`}>
+          <div className="absolute inset-0 grid place-items-center opacity-60">
+            <ThumbWave />
+          </div>
+        </div>
+        {video.thumbnail && (
+          <img src={video.thumbnail} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.05]" />
+        )}
+        <div className="absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-black/40 to-transparent" />
+        {video.duration > 0 && (
+          <span className="absolute bottom-1.5 right-1.5 rounded-md bg-black/50 px-1.5 py-0.5 font-mono text-[9px] font-medium text-white backdrop-blur-sm">
+            {formatTime(video.duration)}
+          </span>
+        )}
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <p className="font-display truncate text-sm font-bold text-stone-900 transition-colors group-hover:text-[#155956] dark:text-stone-100 dark:group-hover:text-[#73CEC2]">
+            {video.originalName}
+          </p>
+          {failed && <Badge tone="orchid">✕ Failed</Badge>}
+        </div>
+        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span className="flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400">
+            {video.source === 'url' ? <IconLink className="h-3 w-3" /> : <IconUpload className="h-3 w-3" />}
+            {video.source === 'url' ? 'URL' : 'Upload'}
+          </span>
+          <span className="text-xs text-stone-400 dark:text-stone-500">{new Date(video.createdAt).toLocaleDateString()}</span>
+          {failed && video.errorMessage && (
+            <span className="line-clamp-1 text-xs text-red-400/90 dark:text-red-300/80">{video.errorMessage.split('\n')[0]}</span>
+          )}
+        </div>
+      </div>
+
+      {done && (
+        <div className="hidden shrink-0 flex-col items-end gap-1.5 sm:flex">
+          <Badge tone="tangerine">
+            <Sparkles size={11} />
+            Graph Mapped
+          </Badge>
+          {resume != null && resume > 15 && (
+            <Badge tone="orchid">
+              <FileText size={11} />
+              Resume {formatTime(resume)}
+            </Badge>
+          )}
+        </div>
+      )}
+
+      {failed && (
+        <Button
+          variant="danger"
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation()
+            onRetry(video._id)
+          }}
+          icon={
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 12a9 9 0 1 0 2.6-6.4" />
+              <path d="M3 4v5h5" />
+            </svg>
+          }
+        >
+          Retry
+        </Button>
+      )}
+    </motion.div>
+  )
+}
+
 function ThumbWave() {
   return (
-    <svg width="64" height="40" viewBox="0 0 64 40" fill="none" aria-hidden="true" className="text-[#FF8A5C]/80">
+    <svg width="64" height="40" viewBox="0 0 64 40" fill="none" aria-hidden="true" className="text-[#73CEC2]/80">
       {Array.from({ length: 28 }, (_, i) => {
         const h = 5 + ((i * 7) % 12)
         return (
@@ -1335,6 +1529,47 @@ function IconArrowDown({ className }: { className?: string }) {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
       <path d="M12 5v14m0 0 6-6m-6 6-6-6" />
+    </svg>
+  )
+}
+
+function IconGrid({ className }: { className?: string }) {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <rect x="3" y="3" width="7" height="7" rx="1.5" />
+      <rect x="14" y="3" width="7" height="7" rx="1.5" />
+      <rect x="3" y="14" width="7" height="7" rx="1.5" />
+      <rect x="14" y="14" width="7" height="7" rx="1.5" />
+    </svg>
+  )
+}
+
+function IconList({ className }: { className?: string }) {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M9 6h11M9 12h11M9 18h11" />
+      <circle cx="4.5" cy="6" r="0.75" fill="currentColor" stroke="none" />
+      <circle cx="4.5" cy="12" r="0.75" fill="currentColor" stroke="none" />
+      <circle cx="4.5" cy="18" r="0.75" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+
+function IconLink({ className }: { className?: string }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7" />
+      <path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7" />
+    </svg>
+  )
+}
+
+function IconUpload({ className }: { className?: string }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <path d="M17 8l-5-5-5 5" />
+      <path d="M12 3v12" />
     </svg>
   )
 }

@@ -1,13 +1,15 @@
 import { Job } from "bullmq";
-import { Video } from "../models/Video.js";
-import { Transcript } from "../models/Transcript.js";
-import { Graph } from "../models/Graph.js";
-import { GeneratedContent } from "../models/GeneratedContent.js";
+import { updateVideo, upsertGenerated, upsertGraph, upsertTranscript } from "../db/repository.js";
+import type { VideoStatus } from "../models/Video.js";
 import { createVideoWorker } from "../config/queue.js";
 import { config } from "../config/index.js";
 
-async function setStatus(videoId: string, status: string, extra: Record<string, unknown> = {}) {
-  await Video.findByIdAndUpdate(videoId, { status, ...extra });
+async function setStatus(
+  videoId: string,
+  status: VideoStatus,
+  extra: { duration?: number; errorMessage?: string | null } = {}
+) {
+  await updateVideo(videoId, { status, ...extra });
 }
 
 async function processVideo(job: Job) {
@@ -41,11 +43,11 @@ async function processVideo(job: Job) {
     const result = await resp.json();
     await job.updateProgress(50);
 
-    await Transcript.findOneAndUpdate(
-      { videoId },
-      { videoId, language: result.language, segments: result.segments },
-      { upsert: true }
-    );
+    if (result.filePath) {
+      await updateVideo(videoId, { filePath: result.filePath });
+    }
+
+    await upsertTranscript(videoId, result.language, result.segments);
 
     await setStatus(videoId, "analyzing");
 
@@ -58,11 +60,7 @@ async function processVideo(job: Job) {
 
     if (analyzeResp.ok) {
       const graphData = await analyzeResp.json();
-      await Graph.findOneAndUpdate(
-        { videoId },
-        { videoId, nodes: graphData.nodes, edges: graphData.edges },
-        { upsert: true }
-      );
+      await upsertGraph(videoId, graphData.nodes, graphData.edges);
     } else {
       // Non-fatal: the transcript is still usable without a knowledge graph.
       const errText = await analyzeResp.text();
@@ -80,18 +78,14 @@ async function processVideo(job: Job) {
 
     if (sumResp.ok) {
       const sumData = await sumResp.json();
-      await GeneratedContent.findOneAndUpdate(
-        { videoId, type: "summary" },
-        { videoId, type: "summary", content: sumData.content, format: sumData.format || "markdown" },
-        { upsert: true }
-      );
+      await upsertGenerated(videoId, "summary", sumData.content, sumData.format || "markdown");
     } else {
       const errText = await sumResp.text();
       console.warn(`Summary generation failed for ${videoId}: ${errText}`);
     }
 
     await job.updateProgress(100);
-    await setStatus(videoId, "done", { duration: result.duration ?? 0, errorMessage: undefined });
+    await setStatus(videoId, "done", { duration: result.duration ?? 0, errorMessage: null });
   } catch (err: any) {
     const isLastAttempt = job.attemptsMade >= (job.opts.attempts ?? 1) - 1;
     console.error(`Failed to process video ${videoId}:`, err);
@@ -108,7 +102,7 @@ export function startVideoWorker() {
     const videoId = job.data?.videoId;
     if (!videoId) return;
     // Backstop in case the handler itself threw before marking the video failed.
-    await Video.findByIdAndUpdate(videoId, {
+    await updateVideo(videoId, {
       status: "failed",
       errorMessage: err?.message || "Processing failed",
     }).catch((updateErr) => console.error("Failed to mark video failed", updateErr));

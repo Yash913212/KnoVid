@@ -3,7 +3,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { v4 as uuid } from "uuid";
-import { Video } from "../models/Video.js";
+import { createVideo, findVideo, listVideos, updateVideo } from "../db/repository.js";
 import { videoQueue } from "../config/queue.js";
 import { config } from "../config/index.js";
 import { AuthRequest, authMiddleware } from "../middleware/auth.js";
@@ -32,24 +32,23 @@ router.post("/upload", authMiddleware, upload.single("video"), async (req: AuthR
     }
 
     const targetLanguage = (req.body.targetLanguage || "en").trim();
-    const video = await Video.create({
+    const video = await createVideo({
       source: "upload",
       originalName: req.file.originalname,
       filePath: req.file.path,
-      owner: req.userId,
-      status: "queued",
+      ownerId: req.userId!,
       targetLanguage,
     });
 
     await videoQueue.add(
       "process-video",
       {
-        videoId: video._id.toString(),
+        videoId: video._id,
         type: "upload",
         filePath: req.file.path,
         targetLanguage,
       },
-      { jobId: video._id.toString(), attempts: 2, backoff: { type: "exponential", delay: 5000 } }
+      { jobId: video._id, attempts: 2, backoff: { type: "exponential", delay: 5000 } }
     );
 
     res.status(201).json({ id: video._id, status: video.status });
@@ -68,24 +67,23 @@ router.post("/url", authMiddleware, async (req: AuthRequest, res: Response) => {
     }
 
     const targetLanguage = (req.body.targetLanguage || "en").trim();
-    const video = await Video.create({
+    const video = await createVideo({
       source: "url",
       originalName: url,
       url,
-      owner: req.userId,
-      status: "queued",
+      ownerId: req.userId!,
       targetLanguage,
     });
 
     await videoQueue.add(
       "process-video",
       {
-        videoId: video._id.toString(),
+        videoId: video._id,
         type: "url",
         url,
         targetLanguage,
       },
-      { jobId: video._id.toString(), attempts: 2, backoff: { type: "exponential", delay: 5000 } }
+      { jobId: video._id, attempts: 2, backoff: { type: "exponential", delay: 5000 } }
     );
 
     res.status(201).json({ id: video._id, status: video.status });
@@ -97,7 +95,7 @@ router.post("/url", authMiddleware, async (req: AuthRequest, res: Response) => {
 
 router.post("/:id/retry", authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
-    const video = await Video.findOne({ _id: req.params.id, owner: req.userId });
+    const video = await findVideo(req.params.id, req.userId);
     if (!video) {
       res.status(404).json({ error: "Video not found" });
       return;
@@ -107,23 +105,20 @@ router.post("/:id/retry", authMiddleware, async (req: AuthRequest, res: Response
       return;
     }
 
-    const payload: Record<string, string> = { videoId: video._id.toString(), type: video.source };
+    const payload: Record<string, string> = { videoId: video._id, type: video.source };
     if (video.source === "url" && video.url) payload.url = video.url;
     else if (video.source === "upload" && video.filePath) payload.filePath = video.filePath;
     if (video.targetLanguage) payload.targetLanguage = video.targetLanguage;
 
-    await Video.findByIdAndUpdate(video._id, {
-      status: "queued",
-      $unset: { errorMessage: "" },
-    });
+    await updateVideo(video._id, { status: "queued", errorMessage: null });
 
     // Re-adding to a queue with the same jobId does not re-queue an existing
     // terminal job, so remove any prior job before enqueuing a fresh one.
-    await videoQueue.remove(video._id.toString()).catch(() => undefined);
+    await videoQueue.remove(video._id).catch(() => undefined);
     await videoQueue.add(
       "process-video",
       payload,
-      { jobId: video._id.toString(), attempts: 2, backoff: { type: "exponential", delay: 5000 } }
+      { jobId: video._id, attempts: 2, backoff: { type: "exponential", delay: 5000 } }
     );
 
     res.json({ id: video._id, status: "queued" });
@@ -134,10 +129,7 @@ router.post("/:id/retry", authMiddleware, async (req: AuthRequest, res: Response
 
 router.get("/:id", authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
-    const video = await Video.findOne({
-      _id: req.params.id,
-      owner: req.userId,
-    });
+    const video = await findVideo(req.params.id, req.userId);
     if (!video) {
       res.status(404).json({ error: "Video not found" });
       return;
@@ -150,7 +142,7 @@ router.get("/:id", authMiddleware, async (req: AuthRequest, res: Response) => {
 
 router.get("/", authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
-    const videos = await Video.find({ owner: req.userId }).sort({ createdAt: -1 });
+    const videos = await listVideos(req.userId!);
     res.json(videos);
   } catch {
     res.status(500).json({ error: "Failed to list videos" });

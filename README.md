@@ -1,143 +1,169 @@
-# KnoVid — Video to Knowledge
+# KnoVid
 
-Turn any video or lecture into a searchable transcript with speaker labels, a
-knowledge graph, summaries/notes/quizzes, and interactive Q&A.
+KnoVid turns videos into searchable knowledge. Upload a file or paste a URL to
+get a speaker-aware transcript, a knowledge graph, summaries, study notes,
+quizzes, translation, and grounded Q&A in one workspace.
 
-Three services, all run **natively — no Docker**:
+## Stack
 
-| Service | Stack | Port | Purpose |
-| --- | --- | --- | --- |
-| `backend/` | Node 20+ / Express / TypeScript | `:3001` | REST API, JWT auth, MongoDB, BullMQ + Redis job queue |
-| `processing-service/` | Python 3.12 / FastAPI | `:8000` | Whisper transcription, pyannote diarization, spaCy + TF-IDF knowledge graph, LLM generation/chat/translation, yt-dlp + ffmpeg |
-| `frontend/` | React 19 / Vite / Tailwind 4 | `:5173` | Dashboard, video player, transcript, graph views (react-flow / vis-network) |
+| Service | Stack | Port | Role |
+| --- | --- | ---: | --- |
+| `frontend/` | React 19, Vite, Tailwind 4 | `5173` | Dashboard, player, transcript, graph, Q&A |
+| `backend/` | Node 20+, Express, TypeScript | `3001` | API, Supabase Auth, persistence, BullMQ worker |
+| `processing-service/` | Python 3.12, FastAPI | `8000` | Downloading, transcription, diarization, analysis, generation |
 
-## Quick start
-
-```bash
-# install dependencies
-npm run install:all          # backend + frontend node_modules
-npm run setup:python         # processing-service Python deps
-npm run setup:spacy          # spaCy English model
-
-# env files (each service has a .env.example — never commit .env)
-cp backend/.env.example backend/.env
-cp processing-service/.env.example processing-service/.env
-cp frontend/.env.example frontend/.env
-
-# start everything
-npm run dev
-```
-
-Individual services: `npm run dev:backend`, `npm run dev:processor`,
-`npm run dev:frontend`.
-
-Requires local **MongoDB** and **Redis** (or free-tier MongoDB Atlas / Upstash),
-plus **yt-dlp** and **ffmpeg** on PATH.
+The services run natively. Docker is not required.
 
 ## How it works
 
+```text
+Browser :5173
+    │  Vite proxy /api
+    ▼
+Backend :3001 ── Supabase Auth + Postgres
+    │          └─ Redis + BullMQ
+    │               └─ video worker
+    ▼
+Processing service :8000
+    ├─ yt-dlp + ffmpeg       ingest and audio extraction
+    ├─ Whisper                transcription
+    ├─ pyannote               optional speaker diarization
+    ├─ spaCy + TF-IDF         entities, topics, keywords, graph
+    └─ OpenAI-compatible LLM summary, notes, quiz, chat, translation
 ```
-Browser ─> frontend (:5173, proxies /api) ─> backend (:3001)
-                                             ├─ MongoDB (users, videos, transcripts, graphs, generated content)
-                                             ├─ Redis + BullMQ (video-processing queue)
-                                             └─ videoWorker ─> processing-service (:8000)
-                                                                 ├─ yt-dlp / ffmpeg   — ingest + audio extraction
-                                                                 ├─ Whisper           — transcription
-                                                                 ├─ pyannote          — speaker diarization (optional)
-                                                                 ├─ spaCy + TF-IDF    — entities/keywords/topics → knowledge graph
-                                                                 └─ LLM               — summary / notes / quiz / chat / translate
+
+Both uploads and URL submissions enqueue the same processing pipeline:
+
+1. The backend creates a queued video row in Supabase and adds a BullMQ job.
+2. The worker calls `/process`, then `/analyze`, then generates a summary.
+3. The frontend polls the video status and displays progress or a retryable
+   error.
+4. Notes, quizzes, chat, translation, and exports use the saved transcript and
+   graph.
+
+## Requirements
+
+- Node.js 20+
+- Python 3.12
+- Redis, local or hosted
+- A Supabase project
+- `ffmpeg`, `ffprobe`, and `yt-dlp` on `PATH`
+- Optional: a Hugging Face token for pyannote speaker labels
+- Optional: an OpenAI-compatible LLM endpoint or local Ollama
+
+## Setup
+
+```bash
+npm run install:all
+npm run setup:python
+npm run setup:spacy
+
+cp backend/.env.example backend/.env
+cp processing-service/.env.example processing-service/.env
+cp frontend/.env.example frontend/.env.local
 ```
 
-1. A video is **uploaded** or **pasted as a URL** — both enqueue the same BullMQ job.
-2. The worker calls the processing service: `/process` (transcribe + speakers)
-   then `/analyze` (knowledge graph), persisting results to MongoDB.
-3. The frontend polls video status
-   (`queued → downloading → processing → analyzing → done | failed`) and shows
-   `errorMessage` + a Retry button on failure.
-4. Summary/notes/quiz, chat Q&A, and translation hit the LLM endpoint; without
-   an `LLM_API_KEY` they degrade to template fallbacks so the UI still works.
+Run the SQL in [`backend/supabase/schema.sql`](backend/supabase/schema.sql) in
+the Supabase SQL editor before starting the backend. It creates the video,
+transcript, graph, and generated-content tables with row-level security.
 
-## Env variables
+Then start all services:
 
-| Var | Service | Purpose |
+```bash
+npm run dev
+```
+
+Or start them individually:
+
+```bash
+npm run dev:backend
+npm run dev:processor
+npm run dev:frontend
+```
+
+## Environment
+
+Backend variables live in `backend/.env`:
+
+| Variable | Purpose |
+| --- | --- |
+| `SUPABASE_URL` | Supabase project URL |
+| `SUPABASE_PUBLISHABLE_KEY` | Public key used by auth helpers |
+| `SUPABASE_SECRET_KEY` | Server-only `sb_secret_...` key for persistence and worker writes |
+| `SUPABASE_SERVICE_ROLE_KEY` | Older alias for the server-only key |
+| `SUPABASE_JWKS_URL` | Supabase JWT verification endpoint |
+| `REDIS_URL` | Redis connection string |
+| `UPLOAD_DIR` | Shared upload/download directory; defaults to `./uploads` |
+| `PROCESSING_SERVICE_URL` | FastAPI base URL; defaults to `http://localhost:8000` |
+
+Frontend variables live in `frontend/.env.local`:
+
+| Variable | Purpose |
+| --- | --- |
+| `VITE_SUPABASE_URL` | Supabase project URL |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | Public browser key |
+| `VITE_API_URL` | Optional API base URL; defaults to `/api` |
+
+Never expose `SUPABASE_SERVICE_ROLE_KEY` in the frontend or commit a real
+`.env` file. Supabase Auth owns sessions; the frontend refreshes the session
+and sends its access token to the backend as a Bearer token.
+
+Processing variables are documented in
+[`processing-service/.env.example`](processing-service/.env.example), including
+`WHISPER_MODEL`, `HF_TOKEN`, `LLM_API_URL`, `LLM_API_KEY`, and Ollama fallback
+settings.
+
+## API
+
+All routes below are under `http://localhost:3001/api`. Protected routes use a
+Supabase access token in `Authorization: Bearer <token>`.
+
+| Method | Route | Purpose |
 | --- | --- | --- |
-| `PORT` | backend | HTTP port (default `3001`) |
-| `MONGODB_URI` | backend | Mongo connection string |
-| `REDIS_URL` | backend | Redis connection string |
-| `JWT_SECRET` | backend | JWT signing secret — long random string outside dev |
-| `UPLOAD_DIR` | backend | Upload storage dir (default `./uploads`) |
-| `PROCESSING_SERVICE_URL` | backend | Base URL of the FastAPI service |
-| `WHISPER_MODEL` | processing | `tiny`/`base`/`small`/`medium`/`large` (downloaded on first use) |
-| `HF_TOKEN` | processing | HuggingFace token for pyannote diarization (optional; skip → no speaker labels) |
-| `LLM_API_URL` | processing | OpenAI-compatible endpoint (OpenAI, OpenRouter, Ollama…) |
-| `LLM_API_KEY` | processing | API key (optional; template fallbacks without it) |
-| LLM_MODEL | Primary model name, currently Claude through OpenRouter |
-| OLLAMA_ENABLED | Enable local Ollama fallback |
-| OLLAMA_API_URL | Ollama OpenAI-compatible endpoint |
-| OLLAMA_MODEL | Local fallback model, default qwen3:8b |
-| `CORS_ORIGINS` | processing | Comma-separated allowed origins (default `http://localhost:5173`) |
-| `VITE_API_URL` | frontend | Optional; defaults to `/api` via the Vite dev proxy |
+| `POST` | `/auth/register` | Create a Supabase Auth account |
+| `POST` | `/auth/login` | Sign in and return an access token |
+| `POST` | `/videos/upload` | Upload a video as multipart field `video` |
+| `POST` | `/videos/url` | Queue a video URL |
+| `POST` | `/videos/:id/retry` | Retry a failed job |
+| `GET` | `/videos` or `/videos/:id` | List or fetch videos |
+| `GET` | `/transcripts/:videoId` | Fetch transcript segments |
+| `GET` | `/graphs/:videoId` | Fetch knowledge graph nodes and edges |
+| `POST` | `/generate` | Generate summary, notes, or quiz |
+| `POST` | `/generate/chat/:videoId` | Ask a question about a video |
+| `POST` | `/generate/fuse/:videoId` | Connect two graph concepts |
+| `GET` | `/generate/export/:videoId/:format` | Export Markdown or JSON |
+| `POST` | `/translate` | Translate transcript and graph labels |
+| `GET` | `/files/<name>` | Serve uploaded media |
+| `GET` | `/health` | Backend liveness check |
 
-## Python dependency notes
+FastAPI documentation is available at
+[`http://localhost:8000/docs`](http://localhost:8000/docs).
 
-`requirements.txt` is validated on **Python 3.12 + torch 2.2.x**.
+## Development checks
 
-- `numpy` is pinned `<2` — torch 2.2 / numba / spaCy's thinc break with numpy 2.x.
-- `openai-whisper` is a source tarball whose build needs `pkg_resources`; install
-  with `--no-build-isolation` (the root `setup:python` script does this).
-- Whisper's CUDA path needs a `triton` matching your torch version
-  (e.g. `pip install "triton==2.2.0"` for torch 2.2) — a mismatch shows up as a
-  `JITCallable._set_src()` error during transcription.
-- pyannote diarization only loads when `HF_TOKEN` is set; transcription and
-  everything else work without it.
+```bash
+npm --prefix backend run build
+npm --prefix frontend run build
+npm --prefix frontend run lint
+```
 
-## API surface
+## Current status
 
-Backend (`:3001`):
+Implemented:
 
-| Endpoint | Auth | Purpose |
-| --- | --- | --- |
-| `POST /api/auth/register` · `POST /api/auth/login` | — | JWT auth (7-day token) |
-| `POST /api/videos/upload` | JWT | Upload a video file (multipart field `video`) |
-| `POST /api/videos/url` | JWT | Ingest a video URL (yt-dlp) |
-| `POST /api/videos/:id/retry` | JWT | Re-queue a failed video |
-| `GET /api/videos` · `GET /api/videos/:id` | JWT | List / fetch videos (incl. status) |
-| `GET /api/transcripts/:videoId` | JWT | Transcript segments |
-| `GET /api/graphs/:videoId` | JWT | Knowledge graph nodes/edges |
-| `POST /api/generate` | JWT | Generate `summary` / `notes` / `quiz` |
-| `POST /api/generate/chat/:videoId` | JWT | Q&A against the transcript |
-| `POST /api/generate/fuse/:videoId` | JWT | Node Fusion — synthesize a grounded connection between two concepts |
-| `GET /api/generate/export/:videoId/:format` | JWT | Export (`markdown` / `json`) |
-| `POST /api/translate` | JWT | Translate transcript segments + graph labels |
-| `GET /api/files/<name>` | — | Serve uploaded video files for playback |
-| `GET /api/health` | — | Liveness check |
+- Supabase Auth and Postgres persistence
+- Upload and URL ingestion through one BullMQ pipeline
+- Whisper transcription with optional diarization
+- Knowledge graph generation
+- Summary, notes, quiz, chat, translation, and Markdown/JSON export
+- Transcript search and SRT/VTT subtitle export
+- Retryable processing failures with visible error messages
+- Responsive reduced-motion-aware frontend UI
 
-Processing service (`:8000`): auto-generated docs at
-[http://localhost:8000/docs](http://localhost:8000/docs) (OpenAPI/Swagger).
+Next:
 
-## Troubleshooting
-
-- **Backend can't reach MongoDB/Redis/processor** — if `localhost` resolves to
-  `127.0.1.1`/`::1` on your machine but the services bind `127.0.0.1`, use
-  `127.0.0.1` in `MONGODB_URI`, `REDIS_URL`, and `PROCESSING_SERVICE_URL`.
-- **Upload returns 500 "No file provided"** — the upload dir is created on
-  startup, but check `UPLOAD_DIR` is writable.
-- **`duration` is 0** — `ffprobe` may be missing/broken; `get_duration` falls
-  back to parsing `ffmpeg -i` output.
-- **YouTube URLs fail to download** — YouTube bot-checks can block yt-dlp
-  without cookies; pass `--cookies-from-browser` or use a direct video URL.
-- **Retried jobs never process** — BullMQ won't re-queue a job re-added with the
-  same `jobId`; the retry endpoint removes the old job first.
-
-## Status
-
-- **Done:** Phase 0 (housekeeping), Phase A (core pipeline hardening), and
-  Phase C (motion/UI polish) — upload + URL ingestion share one worker
-  pipeline; transcribe → diarize → graph runs unattended; generation/chat/
-  translate verified against a real transcript; auth works; failures surface
-  with `errorMessage` and are retryable; transcript search, SRT/VTT subtitle
-  export, and a premium reduced-motion-aware UI polish are live in the
-  frontend.
-- **Next:** Phase B remainder — PDF/DOCX export, editable transcript synced to
-  video playback, cross-video full-text search; Phase D — chapter segmentation,
-  sentiment + filler-word highlighting, speaker renaming.
+- PDF/DOCX export
+- Editable transcript synchronized with playback
+- Cross-video full-text search
+- Chapter segmentation, sentiment and filler-word analysis
+- Speaker renaming

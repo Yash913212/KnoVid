@@ -1,6 +1,6 @@
 import api from './client'
 
-export type VideoStatus = 'queued' | 'downloading' | 'processing' | 'analyzing' | 'done' | 'failed'
+export type VideoStatus = 'queued' | 'downloading' | 'processing' | 'analyzing' | 'summarizing' | 'done' | 'failed'
 
 export interface Video {
   _id: string
@@ -20,7 +20,8 @@ export const STATUS_STEPS: { status: VideoStatus; label: string; order: number }
   { status: 'downloading', label: 'Downloading', order: 1 },
   { status: 'processing', label: 'Transcribing', order: 2 },
   { status: 'analyzing', label: 'Analyzing', order: 3 },
-  { status: 'done', label: 'Done', order: 4 },
+  { status: 'summarizing', label: 'Synthesizing', order: 4 },
+  { status: 'done', label: 'Done', order: 5 },
   { status: 'failed', label: 'Failed', order: -1 },
 ]
 
@@ -29,7 +30,7 @@ export function getStatusStep(status: VideoStatus): number {
 }
 
 export function isProcessing(status: VideoStatus): boolean {
-  return ['queued', 'downloading', 'processing', 'analyzing'].includes(status)
+  return ['queued', 'downloading', 'processing', 'analyzing', 'summarizing'].includes(status)
 }
 
 export const STATUS_COLORS: Record<VideoStatus, string> = {
@@ -37,6 +38,7 @@ export const STATUS_COLORS: Record<VideoStatus, string> = {
   downloading: 'bg-amber-100 text-amber-800',
   processing: 'bg-orange-100 text-orange-800',
   analyzing: 'bg-rose-100 text-rose-800',
+  summarizing: 'bg-violet-100 text-violet-800',
   done: 'bg-green-100 text-green-800',
   failed: 'bg-red-100 text-red-800',
 }
@@ -46,6 +48,7 @@ export const STATUS_LABELS: Record<VideoStatus, string> = {
   downloading: 'Downloading',
   processing: 'Transcribing',
   analyzing: 'Analyzing',
+  summarizing: 'Synthesizing',
   done: 'Done',
   failed: 'Failed',
 }

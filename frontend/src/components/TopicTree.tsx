@@ -89,7 +89,7 @@ function CustomNode({ data }: NodeProps) {
       <div className="mt-1 flex items-center justify-between gap-2">
         {ts != null && (
           <button
-            className="text-[10px] text-gray-400 hover:text-amber-600 transition-colors duration-150 ease-out font-mono"
+            className="text-[10px] text-gray-400 hover:text-[#1D7773] transition-colors duration-150 ease-out font-mono"
             onClick={(e) => {
               e.stopPropagation()
               d.onSeek?.(ts)

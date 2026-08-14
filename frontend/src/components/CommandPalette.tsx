@@ -151,7 +151,7 @@ export default function CommandPalette() {
                 {loading && videos === null && (
                   <div className="space-y-1.5 p-2">
                     {[1, 2, 3].map((i) => (
-                      <div key={i} className="h-10 rounded-lg skeleton-shimmer-brand dark:skeleton-shimmer-brand" />
+                      <div key={i} className="h-10 rounded-lg skeleton-shimmer dark:skeleton-shimmer" />
                     ))}
                   </div>
                 )}
@@ -183,7 +183,7 @@ export default function CommandPalette() {
                           close()
                           navigate(`/video/${v._id}`)
                         }}
-                        className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors ${i === active ? 'bg-amber-500/10 dark:bg-amber-400/10' : 'hover:bg-stone-50 dark:hover:bg-stone-800/60'}`}
+                        className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors ${i === active ? 'bg-[#2BA6A0]/10 dark:bg-[#2BA6A0]/10' : 'hover:bg-stone-50 dark:hover:bg-stone-800/60'}`}
                       >
                         <motion.span
                           initial={{ scale: 0 }}

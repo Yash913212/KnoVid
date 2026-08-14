@@ -388,7 +388,7 @@ export default function KnowledgeGraph({ graphNodes, graphEdges, onSeek }: Props
             className="absolute right-3 top-3 z-10 w-60 rounded-2xl border border-white/10 bg-stone-900/95 p-4 text-stone-100 shadow-xl backdrop-blur-xl"
           >
             <div className="mb-2 flex items-start justify-between gap-2">
-              <span className="rounded bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300">
+              <span className="rounded bg-[#2BA6A0]/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#73CEC2]">
                 {selectedNode.type}
               </span>
               <button
@@ -412,7 +412,7 @@ export default function KnowledgeGraph({ graphNodes, graphEdges, onSeek }: Props
               <button
                 type="button"
                 onClick={() => onSeek(selectedNode.timestampRef!)}
-                className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-2.5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-amber-500"
+                className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-[#2BA6A0] to-[#5D6FE8] px-2.5 py-1.5 text-xs font-semibold text-white transition-transform hover:-translate-y-0.5"
               >
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86a1 1 0 0 0-1.5.86z" /></svg>
                 Play from {formatTime(selectedNode.timestampRef)}

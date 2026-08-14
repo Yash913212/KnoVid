@@ -1,22 +1,18 @@
 import { Router, Response } from "express";
-import { Graph } from "../models/Graph.js";
-import { Video } from "../models/Video.js";
+import { findVideo, getGraph } from "../db/repository.js";
 import { AuthRequest, authMiddleware } from "../middleware/auth.js";
 
 const router = Router();
 
 router.get("/:videoId", authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
-    const video = await Video.findOne({
-      _id: req.params.videoId,
-      owner: req.userId,
-    });
+    const video = await findVideo(req.params.videoId, req.userId);
     if (!video) {
       res.status(404).json({ error: "Video not found" });
       return;
     }
 
-    const graph = await Graph.findOne({ videoId: req.params.videoId });
+    const graph = await getGraph(req.params.videoId);
     if (!graph) {
       if (video.status === "done") {
         res.json({ videoId: req.params.videoId, nodes: [], edges: [] });

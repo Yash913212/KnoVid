@@ -1,8 +1,6 @@
 import { Router, Response } from "express";
-import { Video } from "../models/Video.js";
-import { Transcript } from "../models/Transcript.js";
-import { Graph } from "../models/Graph.js";
-import { GeneratedContent } from "../models/GeneratedContent.js";
+import { findVideo, getGenerated, getGraph, getTranscript, upsertGenerated } from "../db/repository.js";
+import type { ContentType } from "../models/GeneratedContent.js";
 import { config } from "../config/index.js";
 import { AuthRequest, authMiddleware } from "../middleware/auth.js";
 
@@ -16,21 +14,26 @@ router.post("/", authMiddleware, async (req: AuthRequest, res: Response) => {
       return;
     }
 
-    const video = await Video.findOne({ _id: videoId, owner: req.userId });
+    const video = await findVideo(videoId, req.userId);
     if (!video) {
       res.status(404).json({ error: "Video not found" });
       return;
     }
 
-    const transcript = await Transcript.findOne({ videoId });
+    const transcript = await getTranscript(videoId);
     if (!transcript) {
       res.status(400).json({ error: "Transcript not available yet" });
       return;
     }
 
-    const existing = await GeneratedContent.findOne({ videoId, type });
-    if (existing) {
-      res.json(existing);
+    if (!["summary", "notes", "quiz"].includes(type)) {
+      res.status(400).json({ error: "type must be summary, notes, or quiz" });
+      return;
+    }
+
+    const existing = await getGenerated(videoId, type as ContentType);
+    if (existing[0]) {
+      res.json(existing[0]);
       return;
     }
 
@@ -50,12 +53,7 @@ router.post("/", authMiddleware, async (req: AuthRequest, res: Response) => {
     }
 
     const result = await resp.json();
-    const content = await GeneratedContent.create({
-      videoId,
-      type,
-      content: result.content,
-      format: result.format || "markdown",
-    });
+    const content = await upsertGenerated(videoId, type as ContentType, result.content, result.format || "markdown");
 
     res.json(content);
   } catch (err: any) {
@@ -66,17 +64,14 @@ router.post("/", authMiddleware, async (req: AuthRequest, res: Response) => {
 
 router.get("/:videoId", authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
-    const video = await Video.findOne({ _id: req.params.videoId, owner: req.userId });
+    const video = await findVideo(req.params.videoId, req.userId);
     if (!video) {
       res.status(404).json({ error: "Video not found" });
       return;
     }
 
     const type = req.query.type as string | undefined;
-    const filter: Record<string, unknown> = { videoId: req.params.videoId };
-    if (type) filter.type = type;
-
-    const items = await GeneratedContent.find(filter).sort({ createdAt: -1 });
+    const items = await getGenerated(req.params.videoId, type as ContentType | undefined);
     res.json(items);
   } catch {
     res.status(500).json({ error: "Failed to fetch content" });
@@ -91,13 +86,13 @@ router.post("/chat/:videoId", authMiddleware, async (req: AuthRequest, res: Resp
       return;
     }
 
-    const video = await Video.findOne({ _id: req.params.videoId, owner: req.userId });
+    const video = await findVideo(req.params.videoId, req.userId);
     if (!video) {
       res.status(404).json({ error: "Video not found" });
       return;
     }
 
-    const transcript = await Transcript.findOne({ videoId: req.params.videoId });
+    const transcript = await getTranscript(req.params.videoId);
     if (!transcript) {
       res.status(400).json({ error: "Transcript not available" });
       return;
@@ -133,13 +128,13 @@ router.post("/fuse/:videoId", authMiddleware, async (req: AuthRequest, res: Resp
       return;
     }
 
-    const video = await Video.findOne({ _id: req.params.videoId, owner: req.userId });
+    const video = await findVideo(req.params.videoId, req.userId);
     if (!video) {
       res.status(404).json({ error: "Video not found" });
       return;
     }
 
-    const transcript = await Transcript.findOne({ videoId: req.params.videoId });
+    const transcript = await getTranscript(req.params.videoId);
     if (!transcript) {
       res.status(400).json({ error: "Transcript not available" });
       return;
@@ -171,14 +166,14 @@ router.post("/fuse/:videoId", authMiddleware, async (req: AuthRequest, res: Resp
 
 router.get("/export/:videoId/:format", authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
-    const video = await Video.findOne({ _id: req.params.videoId, owner: req.userId });
+    const video = await findVideo(req.params.videoId, req.userId);
     if (!video) {
       res.status(404).json({ error: "Video not found" });
       return;
     }
 
-    const transcript = await Transcript.findOne({ videoId: req.params.videoId });
-    const graph = await Graph.findOne({ videoId: req.params.videoId });
+    const transcript = await getTranscript(req.params.videoId);
+    const graph = await getGraph(req.params.videoId);
 
     if (req.params.format === "json") {
       res.json({

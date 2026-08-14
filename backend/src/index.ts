@@ -3,12 +3,12 @@ import cors from "cors";
 import path from "path";
 import { config } from "./config/index.js";
 import { connectDatabase } from "./config/database.js";
-import authRoutes from "./routes/auth.js";
 import videoRoutes from "./routes/videos.js";
 import transcriptRoutes from "./routes/transcripts.js";
 import graphRoutes from "./routes/graphs.js";
 import generateRoutes from "./routes/generate.js";
 import translateRoutes from "./routes/translate.js";
+import authRoutes from "./routes/auth.js";
 import { startVideoWorker } from "./workers/videoWorker.js";
 
 const app = express();

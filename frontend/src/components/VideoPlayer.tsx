@@ -344,7 +344,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(({ url, filePath, onTim
         >
           <div className="relative h-1.5 w-full overflow-visible rounded-full bg-white/25">
             <div className="absolute inset-y-0 left-0 rounded-full bg-white/40" style={{ width: `${buffered}%` }} />
-            <div className="absolute inset-y-0 left-0 rounded-full bg-[#FF6B35]" style={{ width: `${pct}%` }} />
+            <div className="absolute inset-y-0 left-0 rounded-full bg-[#2BA6A0]" style={{ width: `${pct}%` }} />
             <div className="absolute -top-1.5 h-3.5 w-3.5 -translate-x-1/2 rounded-full bg-white shadow transition-transform duration-150" style={{ left: `${pct}%` }} />
           </div>
           <AnimatePresence>
@@ -391,7 +391,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(({ url, filePath, onTim
               value={muted ? 0 : volume}
               onChange={(e) => { const val = Number(e.target.value); const v = videoRef.current; if (v) { v.volume = val; v.muted = val === 0; setVolume(val); setMuted(val === 0) } }}
               aria-label="Volume"
-              className="h-1 w-16 cursor-pointer accent-[#FF6B35]"
+              className="h-1 w-16 cursor-pointer accent-[#2BA6A0]"
             />
           </div>
 
@@ -422,10 +422,10 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(({ url, filePath, onTim
                         key={s}
                         type="button"
                         onClick={(e) => { e.stopPropagation(); setRate(s); setMenu(null) }}
-                        className={`flex w-full items-center justify-between px-3 py-1.5 text-xs transition-colors hover:bg-white/10 ${rate === s ? 'text-[#FF8A5C]' : 'text-white/85'}`}
+                        className={`flex w-full items-center justify-between px-3 py-1.5 text-xs transition-colors hover:bg-white/10 ${rate === s ? 'text-[#73CEC2]' : 'text-white/85'}`}
                       >
                         {s}x
-                        {rate === s && <span className="h-1.5 w-1.5 rounded-full bg-[#FF6B35]" />}
+                        {rate === s && <span className="h-1.5 w-1.5 rounded-full bg-[#2BA6A0]" />}
                       </button>
                     ))}
                   </motion.div>

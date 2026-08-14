@@ -1,7 +1,5 @@
 import { Router, Response } from "express";
-import { Video } from "../models/Video.js";
-import { Transcript } from "../models/Transcript.js";
-import { Graph } from "../models/Graph.js";
+import { findVideo, getGraph, getTranscript } from "../db/repository.js";
 import { config } from "../config/index.js";
 import { AuthRequest, authMiddleware } from "../middleware/auth.js";
 
@@ -15,19 +13,19 @@ router.post("/", authMiddleware, async (req: AuthRequest, res: Response) => {
       return;
     }
 
-    const video = await Video.findOne({ _id: videoId, owner: req.userId });
+    const video = await findVideo(videoId, req.userId);
     if (!video) {
       res.status(404).json({ error: "Video not found" });
       return;
     }
 
-    const transcript = await Transcript.findOne({ videoId });
+    const transcript = await getTranscript(videoId);
     if (!transcript) {
       res.status(400).json({ error: "Transcript not available" });
       return;
     }
 
-    const graph = await Graph.findOne({ videoId });
+    const graph = await getGraph(videoId);
     const nodeLabels: Record<string, string> = {};
     if (graph) {
       for (const node of graph.nodes) {

@@ -4,6 +4,7 @@ import re
 import asyncio
 from pathlib import Path
 from collections import Counter
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -91,6 +92,7 @@ class ProcessResponse(BaseModel):
     duration: float
     language: str
     segments: list[SegmentOut]
+    filePath: str | None = None
 
 
 class AnalyzeRequest(BaseModel):
@@ -153,6 +155,7 @@ def process_video(req: ProcessRequest):
         duration=duration,
         language=output_language,
         segments=segments,
+        filePath=str(video_path),
     )
 
 
@@ -282,10 +285,14 @@ def extract_topics(
         topic_labels: list[str] = []
         topic_keywords: list[list[str]] = []
 
-        for topic_idx in range(min(8, matrix.shape[1])):
-            col = matrix[:, topic_idx].toarray().flatten()
-            top_indices = col.argsort()[-5:][::-1]
-            words = [feature_names[i] for i in top_indices if col[i] > 0.1]
+        # Each row is a transcript segment and each column is a term. Build
+        # compact topic labels from high-signal terms in representative
+        # segments; indexing feature names with segment indices produces
+        # invalid or misleading topics.
+        for topic_idx in range(min(8, matrix.shape[0])):
+            row = matrix[topic_idx].toarray().flatten()
+            top_indices = row.argsort()[-5:][::-1]
+            words = [feature_names[i] for i in top_indices if row[i] > 0.1]
             if words:
                 label = ", ".join(words[:3])
                 topic_labels.append(label)
@@ -356,22 +363,35 @@ async def download_video(url: str, video_id: str) -> Path | None:
     output_dir.mkdir(parents=True, exist_ok=True)
     output_template = str(output_dir / f"{video_id}.%(ext)s")
 
+    # YouTube radio links include a `list=RD...` parameter. Keep the selected
+    # video instead of letting yt-dlp expand the entire radio playlist.
+    parsed = urlparse(url)
+    query = parse_qs(parsed.query)
+    if parsed.hostname and parsed.hostname.lower() in {"youtube.com", "www.youtube.com", "m.youtube.com"} and query.get("v"):
+        url = urlunparse(parsed._replace(query=urlencode({"v": query["v"][0]})))
+
     try:
         subprocess.run(
             [
                 "yt-dlp",
+                "--no-playlist",
+                "--js-runtimes", "node",
                 "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
                 "-o", output_template,
                 url,
             ],
             check=True,
             capture_output=True,
+            text=True,
             timeout=600,
         )
     except subprocess.CalledProcessError as e:
-        raise HTTPException(500, f"yt-dlp failed: {e.stderr.decode()}")
+        detail = (e.stderr or e.stdout or "unknown downloader error").strip()
+        raise HTTPException(500, f"yt-dlp failed: {detail[-2000:]}")
     except subprocess.TimeoutExpired:
         raise HTTPException(500, "Download timed out")
+    except FileNotFoundError:
+        raise HTTPException(500, "yt-dlp is not installed or is not available on PATH")
 
     for f in output_dir.iterdir():
         if f.stem.startswith(video_id) and f.suffix in (".mp4", ".mkv", ".webm"):
@@ -599,6 +619,11 @@ OLLAMA_ENABLED = os.getenv("OLLAMA_ENABLED", "true").lower() in {"1", "true", "y
 OLLAMA_API_URL = os.getenv("OLLAMA_API_URL", "http://localhost:11434/v1")
 OLLAMA_API_KEY = os.getenv("OLLAMA_API_KEY", "ollama")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3:8b")
+
+
+def llm_available() -> bool:
+    """True when at least one LLM provider (OpenRouter or Ollama) is configured."""
+    return bool(LLM_API_KEY) or OLLAMA_ENABLED
 
 
 async def _call_provider(
@@ -837,7 +862,7 @@ def template_generate(type_: str, full_text: str, segments: list[SegmentOut]) ->
         parts.append("*Note: Install an LLM API key for better quiz generation.*")
         return "\n".join(parts)
 
-    return "Content generation requires an LLM API key (set LLM_API_KEY)."
+    return "Content generation requires an LLM provider (set LLM_API_KEY or enable Ollama)."
 
 
 def template_answer(question: str, context: str, full_text: str) -> str:
@@ -855,7 +880,7 @@ def template_answer(question: str, context: str, full_text: str) -> str:
 
     if top:
         return "Based on the transcript:\n\n" + "\n".join(f"- {t}." for t in top)
-    return "I couldn't find specific information about that in the transcript. Try rephrasing your question or set an LLM_API_KEY for AI-powered answers."
+    return "I couldn't find specific information about that in the transcript. Try rephrasing your question or set LLM_API_KEY / enable Ollama for AI-powered answers."
 
 
 class TranslateRequest(BaseModel):
@@ -874,7 +899,7 @@ class TranslateResponse(BaseModel):
 
 @app.post("/translate", response_model=TranslateResponse)
 async def translate_content(req: TranslateRequest):
-    if not LLM_API_KEY:
+    if not llm_available():
         return TranslateResponse(
             videoId=req.videoId,
             targetLanguage=req.targetLanguage,

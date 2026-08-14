@@ -17,9 +17,9 @@ export default function Login() {
     setError('')
     try {
       await login(email, password)
-      navigate('/')
-    } catch {
-      setError('Invalid email or password')
+      navigate('/app')
+    } catch (err: any) {
+      setError(err.message || 'Invalid email or password')
     } finally {
       setBusy(false)
     }
@@ -40,7 +40,7 @@ export default function Login() {
           Don't have an account?{' '}
           <Link
             to="/register"
-            className="font-semibold text-[#EA580C] hover:text-[#C2410C] hover:underline dark:text-[#FF8A5C] dark:hover:text-[#FF6B35]"
+            className="font-semibold text-[#4555C4] hover:text-[#586BE3] hover:underline dark:text-[#B8C1FF] dark:hover:text-[#8793F2]"
           >
             Create one
           </Link>
