@@ -208,18 +208,9 @@ export const tw = {
 // ─── Hooks ──────────────────────────────────────────────────────
 
 export function usePrefersReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(false)
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
-    setReduced(mq.matches)
-    const handler = (e: MediaQueryListEvent) => setReduced(e.matches)
-    mq.addEventListener('change', handler)
-    return () => mq.removeEventListener('change', handler)
-  }, [])
-
-  return reduced
+  // Animations are a core part of the KnoVid experience — always play them
+  // in full regardless of OS motion preferences.
+  return false
 }
 
 // ─── Scroll-triggered animations ────────────────────────────────────

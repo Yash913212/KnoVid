@@ -21,7 +21,7 @@ export default function NotFound() {
           <BrandTile size="lg" glow>
             <Compass className="h-6 w-6" />
           </BrandTile>
-          <div aria-hidden className="absolute -inset-3 -z-10 rounded-full bg-gradient-to-r from-[#2BA6A0]/20 to-[#5D6FE8]/20 blur-2xl" />
+          <div aria-hidden className="absolute -inset-3 -z-10 rounded-full bg-gradient-to-r from-[#2BA6A0]/20 to-[#C17EF9]/20 blur-2xl" />
         </div>
         <h1 className="font-display mt-8 text-4xl font-bold tracking-tight text-stone-950 sm:text-5xl dark:text-white">
           This universe <span className="font-serif italic font-normal title-gradient">vanished</span>

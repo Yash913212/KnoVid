@@ -87,7 +87,7 @@ export default function NeuralNavigator({ videoId, nodes, edges, segments, onSee
     return (
       <div className="neural-navigator grid h-full min-h-[560px] w-full place-items-center rounded-3xl border border-black/10 dark:border-white/10">
         <div className="max-w-xs px-6 text-center">
-          <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-[#2BA6A0] to-[#5D6FE8] text-white shadow-[0_0_24px_rgb(93_111_232/0.5)]">
+          <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-[#2BA6A0] to-[#C17EF9] text-white shadow-[0_0_24px_rgb(193_126_249/0.5)]">
             <Sparkles size={20} />
           </span>
           <p className="font-display mt-4 text-sm font-bold text-stone-700 dark:text-stone-200">No knowledge graph yet</p>
@@ -180,7 +180,7 @@ function SpatialCanvas({
         target: l.target,
         type: 'thought' as const,
         data: { weight: l.weight },
-        markerEnd: { type: MarkerType.ArrowClosed, color: '#5D6FE8', width: 14, height: 14 },
+        markerEnd: { type: MarkerType.ArrowClosed, color: '#C17EF9', width: 14, height: 14 },
       })),
     [links]
   )
@@ -294,11 +294,11 @@ function SpatialCanvas({
             Concept
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="h-px w-3 bg-[#5D6FE8]" />
+            <span className="h-px w-3 bg-[#C17EF9]" />
             Connection
           </span>
           <span className="flex items-center gap-1.5">
-            <Sparkles size={10} className="text-[#5D6FE8]" />
+            <Sparkles size={10} className="text-[#C17EF9]" />
             Fusion
           </span>
         </div>
@@ -347,11 +347,11 @@ function ConceptNode({ data, selected }: NodeProps<ConceptFlowNode>) {
           className="absolute -inset-2 rounded-full transition-all duration-300"
           style={{
             background:
-              'conic-gradient(from 0deg, rgb(93 111 232 / 1) 0deg, rgb(93 111 232 / 0.25) 42deg, transparent 92deg, transparent 180deg, rgb(93 111 232 / 0.75) 214deg, transparent 264deg)',
+              'conic-gradient(from 0deg, rgb(193 126 249 / 1) 0deg, rgb(193 126 249 / 0.25) 42deg, transparent 92deg, transparent 180deg, rgb(193 126 249 / 0.75) 214deg, transparent 264deg)',
             WebkitMask: `radial-gradient(farthest-side, transparent calc(100% - ${thickness}px), #000 calc(100% - ${thickness}px))`,
             mask: `radial-gradient(farthest-side, transparent calc(100% - ${thickness}px), #000 calc(100% - ${thickness}px))`,
             opacity: 0.5 + data.weight * 0.45,
-            boxShadow: `0 0 ${Math.round(12 + data.weight * 30)}px rgb(93 111 232 / ${glow})`,
+            boxShadow: `0 0 ${Math.round(12 + data.weight * 30)}px rgb(193 126 249 / ${glow})`,
           }}
         />
 
@@ -360,7 +360,7 @@ function ConceptNode({ data, selected }: NodeProps<ConceptFlowNode>) {
           className={`relative rounded-full border px-4 py-2.5 text-sm font-semibold backdrop-blur-xl transition-all duration-200 ${
             selected
               ? 'border-[#2BA6A0]/70 bg-[#2BA6A0]/10 text-[#155956] shadow-[0_0_36px_rgb(43_166_160/0.5)] dark:bg-[#2BA6A0]/[0.14] dark:text-[#B5E4D5]'
-              : 'border-black/10 bg-white/80 text-stone-800 shadow-[0_4px_18px_rgb(0_0_0/0.06)] group-hover:border-[#2BA6A0]/60 group-hover:shadow-[0_0_28px_rgb(43_166_160/0.35)] dark:border-white/15 dark:bg-white/[0.05] dark:text-[#F5F5F5] dark:group-hover:border-[#5D6FE8]/60 dark:group-hover:shadow-[0_0_28px_rgb(43_166_160/0.4)]'
+              : 'border-black/10 bg-white/80 text-stone-800 shadow-[0_4px_18px_rgb(0_0_0/0.06)] group-hover:border-[#2BA6A0]/60 group-hover:shadow-[0_0_28px_rgb(43_166_160/0.35)] dark:border-white/15 dark:bg-white/[0.05] dark:text-[#F5F5F5] dark:group-hover:border-[#C17EF9]/60 dark:group-hover:shadow-[0_0_28px_rgb(43_166_160/0.4)]'
           }`}
         >
           {data.label}
@@ -405,7 +405,7 @@ function ThoughtEdge({
         <linearGradient id={gradId} x1="0" y1="0" x2="1" y2="1">
           <stop offset="0%" stopColor="#2BA6A0" />
           <stop offset="55%" stopColor="#F97316" />
-          <stop offset="100%" stopColor="#5D6FE8" />
+          <stop offset="100%" stopColor="#C17EF9" />
         </linearGradient>
       </defs>
       <path d={path} fill="none" stroke={`url(#${gradId})`} strokeWidth={1 + weight * 2.2} opacity={0.35 + weight * 0.5} className="nav-edge-flow" markerEnd={markerEnd} />
@@ -417,7 +417,7 @@ function ThoughtEdge({
             className="nodrag nopan pointer-events-none absolute"
             style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
           >
-            <span className="rounded-full border border-[#5D6FE8]/30 bg-[#5D6FE8]/10 px-1.5 py-0.5 font-mono text-[9px] font-bold text-[#4555C4] backdrop-blur dark:border-[#5D6FE8]/30 dark:bg-[#5D6FE8]/[0.08] dark:text-[#8793F2]">
+            <span className="rounded-full border border-[#C17EF9]/30 bg-[#C17EF9]/10 px-1.5 py-0.5 font-mono text-[9px] font-bold text-[#7E3AF2] backdrop-blur dark:border-[#C17EF9]/30 dark:bg-[#C17EF9]/[0.08] dark:text-[#E3C4FF]">
               {Math.round(weight * 100)}%
             </span>
           </div>
@@ -462,7 +462,7 @@ function IconBtn({ label, onClick, children }: { label: string; onClick: () => v
       aria-label={label}
       title={label}
       onClick={onClick}
-      className="grid h-9 w-9 place-items-center text-stone-500 transition-colors hover:bg-[#2BA6A0]/10 hover:text-[#1D7773] dark:text-stone-400 dark:hover:bg-[#5D6FE8]/10 dark:hover:text-[#73CEC2]"
+      className="grid h-9 w-9 place-items-center text-stone-500 transition-colors hover:bg-[#2BA6A0]/10 hover:text-[#1D7773] dark:text-stone-400 dark:hover:bg-[#C17EF9]/10 dark:hover:text-[#73CEC2]"
     >
       {children}
     </button>
@@ -486,17 +486,17 @@ function NodeFusionZone({
     <div ref={zoneRef} className="relative grid h-56 w-56 place-items-center" aria-hidden="true">
       {/* Outer dashed orbit */}
       <motion.div
-        className="absolute inset-0 rounded-full border border-dashed border-[#5D6FE8]/40"
+        className="absolute inset-0 rounded-full border border-dashed border-[#C17EF9]/40"
         animate={
           near
             ? {
                 scale: 1.16,
-                borderColor: 'rgb(93 111 232 / 0.9)',
-                boxShadow: '0 0 70px rgb(43 166 160 / 0.4), inset 0 0 50px rgb(93 111 232 / 0.2)',
+                borderColor: 'rgb(193 126 249 / 0.9)',
+                boxShadow: '0 0 70px rgb(43 166 160 / 0.4), inset 0 0 50px rgb(193 126 249 / 0.2)',
               }
             : {
                 scale: 1,
-                borderColor: 'rgb(93 111 232 / 0.35)',
+                borderColor: 'rgb(193 126 249 / 0.35)',
                 boxShadow: '0 0 0 rgb(43 166 160 / 0)',
               }
         }
@@ -504,7 +504,7 @@ function NodeFusionZone({
       />
       {/* Ambient glow disc */}
       <motion.div
-        className="absolute inset-10 rounded-full bg-gradient-to-br from-[#2BA6A0]/12 to-[#5D6FE8]/12 blur-xl"
+        className="absolute inset-10 rounded-full bg-gradient-to-br from-[#2BA6A0]/12 to-[#C17EF9]/12 blur-xl"
         animate={near || armed ? { opacity: 1, scale: 1.1 } : { opacity: [0.6, 1, 0.6] }}
         transition={near || armed ? { duration: 0.25 } : { repeat: Infinity, duration: 3, ease: 'easeInOut' }}
       />
@@ -559,7 +559,7 @@ function NodeFusionModal({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.94, y: 8 }}
             transition={{ type: 'spring', stiffness: 320, damping: 26 }}
-            className="w-full max-w-lg overflow-hidden rounded-3xl border border-white/10 bg-[#0A0A0A]/95 shadow-[0_0_80px_rgb(93_111_232/0.25)]"
+            className="w-full max-w-lg overflow-hidden rounded-3xl border border-white/10 bg-[#0A0A0A]/95 shadow-[0_0_80px_rgb(193_126_249/0.25)]"
           >
             <FusionBody videoId={videoId} a={fusion.a} b={fusion.b} onSeek={onSeek} onClose={onClose} />
           </motion.div>
@@ -661,7 +661,7 @@ function FusionBody({
           type="button"
           onClick={onClose}
           aria-label="Close fusion modal"
-          className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.04] text-stone-300 transition-colors hover:border-[#5D6FE8]/50 hover:text-white"
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.04] text-stone-300 transition-colors hover:border-[#C17EF9]/50 hover:text-white"
         >
           <X size={14} />
         </button>
@@ -690,7 +690,7 @@ function FusionBody({
                   >
                     <span
                       className={`grid h-5 w-5 shrink-0 place-items-center rounded-full ${
-                        reached ? 'bg-gradient-to-br from-[#2BA6A0] to-[#5D6FE8] text-white' : 'border border-white/15 text-stone-500'
+                        reached ? 'bg-gradient-to-br from-[#2BA6A0] to-[#C17EF9] text-white' : 'border border-white/15 text-stone-500'
                       }`}
                     >
                       {reached ? (
@@ -730,7 +730,7 @@ function FusionBody({
                   <>
                     <div className="flex items-center gap-2">
                       <Sparkles size={14} className="text-[#73CEC2]" />
-                      <p className="font-display text-xs font-bold uppercase tracking-[0.2em] text-[#8793F2]">Connection mapped</p>
+                      <p className="font-display text-xs font-bold uppercase tracking-[0.2em] text-[#E3C4FF]">Connection mapped</p>
                     </div>
                     <p className="mt-3 whitespace-pre-line text-sm leading-7 text-stone-200">{result.explanation}</p>
 
@@ -743,7 +743,7 @@ function FusionBody({
                               key={i}
                               type="button"
                               onClick={() => onSeek?.(c.time)}
-                              className="group block w-full rounded-xl border border-white/10 bg-white/[0.03] p-3 text-left transition-colors hover:border-[#5D6FE8]/50"
+                              className="group block w-full rounded-xl border border-white/10 bg-white/[0.03] p-3 text-left transition-colors hover:border-[#C17EF9]/50"
                             >
                               <div className="mb-1 flex items-center gap-2">
                                 <span className="font-mono text-[10px] font-semibold text-[#73CEC2]">{formatTime(c.time)}</span>
@@ -770,7 +770,7 @@ function FusionBody({
                       <button
                         type="button"
                         onClick={onClose}
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-[#5D6FE8]/40 bg-[#5D6FE8]/10 px-3 py-1.5 text-xs font-semibold text-[#8793F2] transition-colors hover:bg-[#5D6FE8]/20"
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-[#C17EF9]/40 bg-[#C17EF9]/10 px-3 py-1.5 text-xs font-semibold text-[#E3C4FF] transition-colors hover:bg-[#C17EF9]/20"
                       >
                         <MousePointer2 size={12} />
                         Back to canvas
@@ -819,7 +819,7 @@ function ContextualInspector({
               type="button"
               onClick={onClose}
               aria-label="Close inspector"
-              className="grid h-8 w-8 place-items-center rounded-full border border-black/10 bg-white/70 text-stone-500 transition-colors hover:border-[#5D6FE8]/50 hover:text-[#4555C4] dark:border-white/10 dark:bg-white/[0.04] dark:text-stone-300 dark:hover:text-[#8793F2]"
+              className="grid h-8 w-8 place-items-center rounded-full border border-black/10 bg-white/70 text-stone-500 transition-colors hover:border-[#C17EF9]/50 hover:text-[#7E3AF2] dark:border-white/10 dark:bg-white/[0.04] dark:text-stone-300 dark:hover:text-[#E3C4FF]"
             >
               <X size={14} />
             </button>
@@ -866,7 +866,7 @@ function ContextualInspector({
                       key={i}
                       type="button"
                       onClick={() => onSeek?.(sn.time)}
-                      className="group block w-full rounded-xl border border-black/10 bg-white/60 p-3 text-left transition-colors hover:border-[#2BA6A0]/50 dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-[#5D6FE8]/50"
+                      className="group block w-full rounded-xl border border-black/10 bg-white/60 p-3 text-left transition-colors hover:border-[#2BA6A0]/50 dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-[#C17EF9]/50"
                     >
                       <div className="mb-1 flex items-center gap-2">
                         <span className="font-mono text-[10px] font-semibold text-[#1D7773] dark:text-[#73CEC2]">
@@ -900,11 +900,11 @@ function SpeakerPill({ name, count, tone }: { name: string; count: number; tone:
       className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] font-medium ${
         tangerine
           ? 'border-[#2BA6A0]/40 bg-[#2BA6A0]/10 text-[#155956] dark:border-[#2BA6A0]/35 dark:bg-[#2BA6A0]/[0.08] dark:text-[#73CEC2]'
-          : 'border-[#5D6FE8]/40 bg-[#5D6FE8]/10 text-[#4555C4] dark:border-[#5D6FE8]/35 dark:bg-[#5D6FE8]/[0.08] dark:text-[#8793F2]'
+          : 'border-[#C17EF9]/40 bg-[#C17EF9]/10 text-[#7E3AF2] dark:border-[#C17EF9]/35 dark:bg-[#C17EF9]/[0.08] dark:text-[#E3C4FF]'
       }`}
     >
       <span
-        className={`grid h-4 w-4 place-items-center rounded-full text-[9px] font-black text-white ${tangerine ? 'bg-[#2BA6A0]' : 'bg-[#5D6FE8]'}`}
+        className={`grid h-4 w-4 place-items-center rounded-full text-[9px] font-black text-white ${tangerine ? 'bg-[#2BA6A0]' : 'bg-[#C17EF9]'}`}
       >
         {name.slice(0, 1).toUpperCase()}
       </span>

@@ -236,11 +236,12 @@ export default function VideoDetail() {
 
         {/* ── Player with orchid glow + pill badges ─────────────── */}
         <motion.div
-          className="relative overflow-hidden rounded-3xl border border-black/[0.06] bg-white/70 p-2 shadow-[inset_0_1px_0_rgb(255_255_255/0.6),0_0_60px_rgb(93_111_232/0.14),0_0_130px_rgb(43_166_160/0.08)] backdrop-blur-xl dark:border-white/10 dark:bg-stone-900/70 dark:shadow-[inset_0_1px_0_rgb(255_255_255/0.05),0_0_70px_rgb(93_111_232/0.20),0_0_150px_rgb(43_166_160/0.12)]"
+          className="group relative overflow-hidden rounded-3xl border border-black/[0.06] bg-white/70 p-2 shadow-[inset_0_1px_0_rgb(255_255_255/0.6),0_0_60px_rgb(193_126_249/0.14),0_0_130px_rgb(43_166_160/0.08)] backdrop-blur-xl dark:border-white/10 dark:bg-stone-900/70 dark:shadow-[inset_0_1px_0_rgb(255_255_255/0.05),0_0_70px_rgb(193_126_249/0.20),0_0_150px_rgb(43_166_160/0.12)]"
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={transitions.content}
         >
+          <div className="player-aura" aria-hidden />
           <VideoPlayer ref={playerRef} url={video.url} filePath={video.filePath} title={video.originalName} onTimeUpdate={handleTimeUpdate} />
           {resumeAt != null && resumeAt > 15 && video.status === 'done' && (
             <motion.button
@@ -279,7 +280,7 @@ export default function VideoDetail() {
               value={targetLang}
               onChange={(e) => setTargetLang(e.target.value)}
               aria-label="Translate to language"
-              className="appearance-none rounded-full border border-black/10 bg-white/70 py-1.5 pl-3 pr-8 text-xs font-semibold text-stone-700 outline-none transition-colors focus:border-[#2BA6A0]/60 dark:border-white/15 dark:bg-white/[0.04] dark:text-stone-200 dark:focus:border-[#5D6FE8]/60"
+              className="appearance-none rounded-full border border-black/10 bg-white/70 py-1.5 pl-3 pr-8 text-xs font-semibold text-stone-700 outline-none transition-colors focus:border-[#2BA6A0]/60 dark:border-white/15 dark:bg-white/[0.04] dark:text-stone-200 dark:focus:border-[#C17EF9]/60"
             >
               {LANGUAGES.map((l) => (
                 <option key={l.code} value={l.code}>{l.label}</option>
@@ -351,7 +352,7 @@ export default function VideoDetail() {
                   onSeek={handleSeek}
                 />
               ) : video.status === 'done' ? (
-                <div className="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-[#2BA6A0]/40 bg-white/65 py-16 text-center text-stone-500 backdrop-blur-xl dark:border-[#5D6FE8]/40 dark:bg-stone-900/50 dark:text-stone-400">
+                <div className="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-[#2BA6A0]/40 bg-white/65 py-16 text-center text-stone-500 backdrop-blur-xl dark:border-[#C17EF9]/40 dark:bg-stone-900/50 dark:text-stone-400">
                   No transcript.
                 </div>
               ) : (
@@ -441,7 +442,7 @@ export default function VideoDetail() {
                                     <h3 className="font-display mb-3 text-lg font-bold text-stone-800 dark:text-stone-200">Key Terms</h3>
                                     <div className="flex flex-wrap gap-2">
                                       {keywords.map((node) => (
-                                        <span key={node.id} className="rounded-full border border-stone-200 bg-gray-100 px-3 py-1 text-sm text-gray-700 cursor-pointer transition-colors duration-150 ease-out hover:border-[#2BA6A0]/50 hover:bg-[#2BA6A0]/10 shadow-[inset_0_1px_0_rgb(255_255_255/0.6)] dark:border-white/10 dark:bg-stone-800 dark:text-stone-300 dark:hover:border-[#5D6FE8]/40 dark:hover:bg-[#5D6FE8]/10 dark:shadow-[inset_0_1px_0_rgb(255_255_255/0.05)]"
+                                        <span key={node.id} className="rounded-full border border-stone-200 bg-gray-100 px-3 py-1 text-sm text-gray-700 cursor-pointer transition-colors duration-150 ease-out hover:border-[#2BA6A0]/50 hover:bg-[#2BA6A0]/10 shadow-[inset_0_1px_0_rgb(255_255_255/0.6)] dark:border-white/10 dark:bg-stone-800 dark:text-stone-300 dark:hover:border-[#C17EF9]/40 dark:hover:bg-[#C17EF9]/10 dark:shadow-[inset_0_1px_0_rgb(255_255_255/0.05)]"
                                           onClick={() => node.timestampRef != null && handleSeek(node.timestampRef)}>{node.label}</span>
                                       ))}
                                     </div>
@@ -458,7 +459,7 @@ export default function VideoDetail() {
               )}
 
               {mainTab === 'graph' && !graph && (
-                <div className="rounded-3xl border border-dashed border-[#2BA6A0]/40 bg-white/65 py-16 text-center text-stone-500 backdrop-blur-xl dark:border-[#5D6FE8]/40 dark:bg-stone-900/50 dark:text-stone-400">
+                <div className="rounded-3xl border border-dashed border-[#2BA6A0]/40 bg-white/65 py-16 text-center text-stone-500 backdrop-blur-xl dark:border-[#C17EF9]/40 dark:bg-stone-900/50 dark:text-stone-400">
                   {video.status === 'done' ? 'Analysis will appear once processing is complete.' : <OutputSkeleton lines={3} />}
                 </div>
               )}
@@ -520,14 +521,14 @@ function RecallPanel({
   const speaker = card.speaker || 'Speaker'
 
   return (
-    <section className="overflow-hidden rounded-[2rem] border border-[#5D6FE8]/20 bg-stone-950 text-white shadow-[0_30px_90px_rgb(93_111_232/0.15)]">
+    <section className="overflow-hidden rounded-[2rem] border border-[#C17EF9]/20 bg-stone-950 text-white shadow-[0_30px_90px_rgb(193_126_249/0.15)]">
       <div className="relative overflow-hidden px-5 py-6 sm:px-8 sm:py-8">
-        <div className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-[#5D6FE8]/20 blur-3xl" />
+        <div className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-[#C17EF9]/20 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-28 left-1/4 h-64 w-64 rounded-full bg-[#2BA6A0]/15 blur-3xl" />
         <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-xl">
             <div className="flex items-center gap-2 text-[#B5E4D5]">
-              <span className="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-br from-[#2BA6A0] to-[#5D6FE8] shadow-[0_0_22px_rgb(93_111_232/0.45)]">
+              <span className="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-br from-[#2BA6A0] to-[#C17EF9] shadow-[0_0_22px_rgb(193_126_249/0.45)]">
                 <BrainCircuit size={17} />
               </span>
               <span className="font-mono text-[10px] font-medium uppercase tracking-[0.24em]">KnoVid Recall Loop</span>
@@ -545,7 +546,7 @@ function RecallPanel({
               <span className="font-mono text-[#B5E4D5]">{remembered}/{cards.length}</span>
             </div>
             <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10">
-              <motion.div className="h-full rounded-full bg-gradient-to-r from-[#2BA6A0] to-[#5D6FE8]" animate={{ width: `${progress}%` }} />
+              <motion.div className="h-full rounded-full bg-gradient-to-r from-[#2BA6A0] to-[#C17EF9]" animate={{ width: `${progress}%` }} />
             </div>
             <p className="mt-2 text-[11px] text-stone-500">Source: {videoTitle}</p>
           </div>
@@ -564,14 +565,14 @@ function RecallPanel({
           </div>
 
           <div className="rounded-3xl border border-white/10 bg-white/[0.045] p-5 sm:p-7">
-            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#8793F2]">{speaker} · {formatTime(card.start)}</p>
+            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#E3C4FF]">{speaker} · {formatTime(card.start)}</p>
             <h3 className="mt-3 font-display text-xl font-bold leading-snug sm:text-2xl">
               What is the core idea in this moment?
             </h3>
             <AnimatePresence mode="wait">
               {revealed ? (
-                <motion.div key="answer" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="mt-5 rounded-2xl border border-[#5D6FE8]/25 bg-[#5D6FE8]/[0.08] p-4">
-                  <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-[#8793F2]"><Sparkles size={14} /> Source answer</div>
+                <motion.div key="answer" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="mt-5 rounded-2xl border border-[#C17EF9]/25 bg-[#C17EF9]/[0.08] p-4">
+                  <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-[#E3C4FF]"><Sparkles size={14} /> Source answer</div>
                   <p className="text-sm leading-7 text-stone-200">{card.text}</p>
                 </motion.div>
               ) : (
@@ -592,7 +593,7 @@ function RecallPanel({
                   Reveal source <Eye size={15} />
                 </button>
               ) : (
-                <button type="button" onClick={onRemember} className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#2BA6A0] to-[#5D6FE8] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_30px_rgb(93_111_232/0.35)] transition-transform hover:-translate-y-0.5">
+                <button type="button" onClick={onRemember} className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#2BA6A0] to-[#C17EF9] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_30px_rgb(193_126_249/0.35)] transition-transform hover:-translate-y-0.5">
                   I remembered it <Check size={15} />
                 </button>
               )}
@@ -730,14 +731,15 @@ function StepNode({ state, index, label }: { state: StepState; index: number; la
       <span className="flex items-center gap-2">
         <span className="relative grid h-7 w-7 shrink-0 place-items-center">
           <span className="spin-ring absolute inset-0" />
+          <span className="step-ring absolute inset-0" />
           <motion.span
-            className="h-3.5 w-3.5 rounded-full bg-gradient-to-br from-[#2BA6A0] to-[#5D6FE8] shadow-[0_0_16px_rgb(93_111_232/0.7)]"
+            className="h-3.5 w-3.5 rounded-full bg-gradient-to-br from-[#2BA6A0] to-[#C17EF9] shadow-[0_0_16px_rgb(193_126_249/0.7)]"
             animate={reduced ? {} : { scale: [1, 1.18, 1] }}
             transition={{ repeat: Infinity, duration: 1.6, ease: 'easeInOut' }}
           />
         </span>
         <motion.span
-          className="hidden animate-pulse text-xs font-semibold text-[#5D6FE8] sm:block"
+          className="hidden animate-pulse text-xs font-semibold text-[#C17EF9] sm:block"
           animate={reduced ? {} : { opacity: [1, 0.55, 1] }}
           transition={{ repeat: Infinity, duration: 1.6, ease: 'easeInOut' }}
         >
@@ -776,7 +778,7 @@ function Connector({ state }: { state: 'done' | 'active' | 'pending' }) {
     state === 'done'
       ? 'bg-[#2BA6A0]/60'
       : state === 'active'
-        ? 'bg-gradient-to-r from-[#2BA6A0]/60 to-[#5D6FE8]/60'
+        ? 'bg-gradient-to-r from-[#2BA6A0]/60 to-[#C17EF9]/60'
         : 'bg-black/10 dark:bg-white/10'
   return <span className={`h-0.5 min-w-3 flex-1 rounded-full ${cls}`} />
 }
@@ -796,7 +798,7 @@ function Chip({ tone = 'default', children }: { tone?: 'default' | 'tangerine' |
   const cls = {
     default: 'border-black/10 bg-white/70 text-stone-600 dark:border-white/15 dark:bg-white/[0.04] dark:text-stone-300',
     tangerine: 'border-[#2BA6A0]/40 bg-[#2BA6A0]/10 text-[#155956] dark:border-[#2BA6A0]/35 dark:bg-[#2BA6A0]/[0.08] dark:text-[#73CEC2]',
-    orchid: 'border-[#5D6FE8]/40 bg-[#5D6FE8]/10 text-[#4555C4] dark:border-[#5D6FE8]/35 dark:bg-[#5D6FE8]/[0.08] dark:text-[#8793F2]',
+    orchid: 'border-[#C17EF9]/40 bg-[#C17EF9]/10 text-[#7E3AF2] dark:border-[#C17EF9]/35 dark:bg-[#C17EF9]/[0.08] dark:text-[#E3C4FF]',
   }[tone]
   return (
     <span className={`inline-flex max-w-full items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold backdrop-blur-md ${cls}`}>
@@ -865,7 +867,7 @@ function GraphFallback() {
       {nodes.map((n, i) => (
         <span
           key={i}
-          className="absolute rounded-full bg-[#5D6FE8]/40 animate-pulse dark:bg-[#5D6FE8]/30"
+          className="absolute rounded-full bg-[#C17EF9]/40 animate-pulse dark:bg-[#C17EF9]/30"
           style={{ top: n.top, left: n.left, width: n.size, height: n.size, animationDelay: `${i * 160}ms` }}
         />
       ))}
@@ -969,8 +971,8 @@ function GeneratePanel({ videoId }: { videoId: string }) {
 
   const types = [
     { key: 'summary' as const, label: 'Summary', desc: 'Concise overview', icon: 'S', color: 'from-[#2BA6A0] to-[#D4A34A]' },
-    { key: 'notes' as const, label: 'Study Notes', desc: 'Structured key points', icon: 'N', color: 'from-[#5D6FE8] to-[#7788DE]' },
-    { key: 'quiz' as const, label: 'Quiz', desc: 'Test your knowledge', icon: 'Q', color: 'from-[#D4A34A] to-[#5D6FE8]' },
+    { key: 'notes' as const, label: 'Study Notes', desc: 'Structured key points', icon: 'N', color: 'from-[#C17EF9] to-[#C08BF0]' },
+    { key: 'quiz' as const, label: 'Quiz', desc: 'Test your knowledge', icon: 'Q', color: 'from-[#D4A34A] to-[#C17EF9]' },
   ]
 
   return (
@@ -1041,13 +1043,13 @@ function GeneratePanel({ videoId }: { videoId: string }) {
                 transition={transitions.contentIn}
                 className="flex max-w-[85%] gap-2.5 self-start"
               >
-                <span className="relative mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#5D6FE8] to-[#7788DE] shadow-[0_0_16px_rgb(93_111_232/0.7)]">
+                <span className="relative mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#C17EF9] to-[#C08BF0] shadow-[0_0_16px_rgb(193_126_249/0.7)]">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
                     <path d="M9.9 2.4 11 6l3.6 1.1-3.6 1.1L9.9 12l-1.1-3.8L5.2 7.1 8.8 6z" />
                     <path d="m17 14 .8 2.4 2.4.8-2.4.8L17 20.4l-.8-2.4-2.4-.8 2.4-.8z" />
                   </svg>
                 </span>
-                <div className="whitespace-pre-wrap rounded-2xl border border-[#5D6FE8]/25 bg-black/40 px-3.5 py-2.5 text-sm text-stone-200 shadow-[0_4px_24px_rgb(93_111_232/0.15)] backdrop-blur-xl">
+                <div className="whitespace-pre-wrap rounded-2xl border border-[#C17EF9]/25 bg-black/40 px-3.5 py-2.5 text-sm text-stone-200 shadow-[0_4px_24px_rgb(193_126_249/0.15)] backdrop-blur-xl">
                   <Typewriter text={item.a} />
                 </div>
               </motion.div>
@@ -1060,13 +1062,13 @@ function GeneratePanel({ videoId }: { videoId: string }) {
               transition={transitions.contentIn}
               className="flex max-w-[85%] gap-2.5 self-start"
             >
-              <span className="mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#5D6FE8] to-[#7788DE] shadow-[0_0_16px_rgb(93_111_232/0.6)]">
+              <span className="mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#C17EF9] to-[#C08BF0] shadow-[0_0_16px_rgb(193_126_249/0.6)]">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
                   <path d="M9.9 2.4 11 6l3.6 1.1-3.6 1.1L9.9 12l-1.1-3.8L5.2 7.1 8.8 6z" />
                   <path d="m17 14 .8 2.4 2.4.8-2.4.8L17 20.4l-.8-2.4-2.4-.8 2.4-.8z" />
                 </svg>
               </span>
-              <div className="inline-flex items-center gap-1.5 rounded-2xl border border-white/10 bg-black/40 px-3.5 py-2.5 text-[#8793F2] backdrop-blur-xl">
+              <div className="inline-flex items-center gap-1.5 rounded-2xl border border-white/10 bg-black/40 px-3.5 py-2.5 text-[#E3C4FF] backdrop-blur-xl">
                 <TypingDots />
                 <span className="text-xs">Thinking…</span>
               </div>
@@ -1156,7 +1158,7 @@ function TabBtn({ active, onClick, children, disabled = false }: { active: boole
       {active && (
         <motion.span
           layoutId="main-tab-pill"
-          className="absolute inset-0 -z-10 rounded-xl bg-gradient-to-r from-[#2BA6A0] to-[#5D6FE8] shadow-[0_6px_20px_rgb(93_111_232/0.35)]"
+          className="absolute inset-0 -z-10 rounded-xl bg-gradient-to-r from-[#2BA6A0] to-[#C17EF9] shadow-[0_6px_20px_rgb(193_126_249/0.35)]"
           transition={{ type: 'spring', stiffness: 420, damping: 32 }}
         />
       )}
@@ -1178,7 +1180,7 @@ function ViewBtn({ active, onClick, children }: { active: boolean; onClick: () =
       {active && (
         <motion.span
           layoutId="graph-view-pill"
-          className="absolute inset-0 -z-10 rounded-xl bg-gradient-to-r from-[#2BA6A0] to-[#5D6FE8] shadow-[0_4px_16px_rgb(93_111_232/0.3)]"
+          className="absolute inset-0 -z-10 rounded-xl bg-gradient-to-r from-[#2BA6A0] to-[#C17EF9] shadow-[0_4px_16px_rgb(193_126_249/0.3)]"
           transition={{ type: 'spring', stiffness: 420, damping: 32 }}
         />
       )}
@@ -1229,7 +1231,7 @@ function NeuralBreakout({
         aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
         className={`absolute right-3 top-3 z-20 grid place-items-center transition-all duration-200 ease-out ${
           fullscreen
-            ? 'h-10 w-10 rounded-xl bg-gradient-to-r from-[#2BA6A0] to-[#5D6FE8] text-white shadow-[0_0_20px_rgb(43_166_160/0.45)] hover:shadow-[0_0_28px_rgb(93_111_232/0.5)]'
+            ? 'h-10 w-10 rounded-xl bg-gradient-to-r from-[#2BA6A0] to-[#C17EF9] text-white shadow-[0_0_20px_rgb(43_166_160/0.45)] hover:shadow-[0_0_28px_rgb(193_126_249/0.5)]'
             : 'h-9 w-9 rounded-lg border border-black/10 bg-white/80 text-stone-600 backdrop-blur-md hover:bg-[#2BA6A0] hover:text-white dark:border-white/10 dark:bg-stone-800/80 dark:text-stone-300'
         }`}
       >

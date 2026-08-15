@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, Fragment, lazy, Suspense } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { AnimatePresence, motion } from 'motion/react'
+import { AnimatePresence, animate, motion } from 'motion/react'
 import { uploadVideo, submitUrl, getVideos, retryVideo, STATUS_LABELS, STATUS_PROGRESS, getStatusStep, isProcessing, type Video, type VideoStatus } from '../api/videos'
 import { fadeUpLift, scaleFade, tw, staggerContainer, staggerItem, transitions } from '../lib/motion'
 import { useToast } from '../components/Toast'
@@ -47,9 +47,9 @@ const SOURCES = ['YouTube', 'Vimeo', 'X / Twitter', 'TikTok', 'Podcasts', 'Direc
 
 const PIPELINE = [
   { label: 'Transcribe', desc: 'Speech → text in any language', color: 'from-[#2BA6A0] to-[#D4A34A]', glow: 'text-[#73CEC2]', Icon: IconMic },
-  { label: 'Diarize', desc: 'Separate speakers & roles', color: 'from-[#73CEC2] to-[#B75B6A]', glow: 'text-[#8793F2]', Icon: IconUsers },
-  { label: 'Graph', desc: 'Map concepts & connections', color: 'from-[#5D6FE8] to-[#7788DE]', glow: 'text-[#8793F2]', Icon: IconGraph },
-  { label: 'Generate', desc: 'Notes, quizzes & Q&A', color: 'from-[#2BA6A0] to-[#5D6FE8]', glow: 'text-[#8793F2]', Icon: IconSparkles },
+  { label: 'Diarize', desc: 'Separate speakers & roles', color: 'from-[#73CEC2] to-[#B75B6A]', glow: 'text-[#E3C4FF]', Icon: IconUsers },
+  { label: 'Graph', desc: 'Map concepts & connections', color: 'from-[#C17EF9] to-[#C08BF0]', glow: 'text-[#E3C4FF]', Icon: IconGraph },
+  { label: 'Generate', desc: 'Notes, quizzes & Q&A', color: 'from-[#2BA6A0] to-[#C17EF9]', glow: 'text-[#E3C4FF]', Icon: IconSparkles },
 ]
 
 type FlowState = 'idle' | 'active' | 'done'
@@ -352,9 +352,9 @@ export default function Dashboard() {
                 transition={{ ...transitions.contentIn, delay: 0.08 }}
                 className="mt-6 inline-grid w-full max-w-xl grid-cols-3 divide-x divide-black/[0.06] overflow-hidden rounded-2xl border border-black/[0.08] bg-white/70 shadow-[inset_0_1px_0_rgb(255_255_255/0.6)] backdrop-blur-xl dark:divide-white/10 dark:border-white/10 dark:bg-white/[0.04]"
               >
-                <StatCell label="Universes" value={String(videos.length)} accent="text-[#2BA6A0]" />
-                <StatCell label="Mapped" value={String(mappedVideos.length)} accent="text-[#5D6FE8]" />
-                <StatCell label="Transcript" value={`${transcriptMinutes}m`} accent="text-stone-950 dark:text-white" />
+                <StatCell label="Universes" value={videos.length} accent="text-[#2BA6A0]" />
+                <StatCell label="Mapped" value={mappedVideos.length} accent="text-[#C17EF9]" />
+                <StatCell label="Transcript" value={transcriptMinutes} suffix="m" accent="text-stone-950 dark:text-white" />
               </motion.div>
             </section>
 
@@ -426,7 +426,7 @@ export default function Dashboard() {
             <section id="library" className="mx-auto max-w-6xl px-4 pb-24 pt-2">
               <div className="mb-4 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
                 <div>
-                  <p className="eyebrow text-[#4555C4] dark:text-[#8793F2]">Knowledge universe</p>
+                  <p className="eyebrow text-[#7E3AF2] dark:text-[#E3C4FF]">Knowledge universe</p>
                   <h2 className="font-display mt-1.5 text-2xl font-bold text-stone-950 dark:text-stone-50">
                     Imported <span className="font-serif italic font-normal title-gradient">sources</span>
                   </h2>
@@ -614,7 +614,7 @@ function GraphConstellation() {
         <defs>
           <linearGradient id="const-edge" x1="0" y1="0" x2="1" y2="1">
             <stop offset="0%" stopColor="#2BA6A0" stopOpacity="0.5" />
-            <stop offset="100%" stopColor="#5D6FE8" stopOpacity="0.5" />
+            <stop offset="100%" stopColor="#C17EF9" stopOpacity="0.5" />
           </linearGradient>
         </defs>
         {edges.map(([a, b], i) => (
@@ -632,7 +632,7 @@ function GraphConstellation() {
           <motion.circle
             key={i}
             cx={n.x} cy={n.y} r={n.r}
-            fill={i === 0 ? '#73CEC2' : '#8793F2'}
+            fill={i === 0 ? '#73CEC2' : '#E3C4FF'}
             initial={{ scale: 0, opacity: 0 }}
             animate={{ scale: 1, opacity: i === 0 ? 0.9 : 0.55 }}
             transition={{ type: 'spring', stiffness: 300, damping: 20, delay: 0.25 + i * 0.06 }}
@@ -641,7 +641,7 @@ function GraphConstellation() {
         ))}
         <motion.circle
           cx={nodes[0].x} cy={nodes[0].y} r={26}
-          fill="rgb(93 111 232 / 0.14)"
+          fill="rgb(193 126 249 / 0.14)"
           initial={{ scale: 0.6, opacity: 0 }}
           animate={{ scale: [0.6, 1.08, 0.9], opacity: 0.8 }}
           transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
@@ -726,7 +726,7 @@ function MagicUploadPortal(props: PortalProps) {
           }}
           animate={{ scale: dragOver ? 1.1 : busy ? 1.04 : 1 }}
           transition={{ type: 'spring', stiffness: 180, damping: 24 }}
-          className={`portal-core relative grid aspect-square w-60 cursor-pointer place-items-center overflow-hidden rounded-full border border-white/10 bg-black/40 backdrop-blur-2xl shadow-[0_0_40px_10px_rgba(93,111,232,0.15)] transition-[box-shadow,transform,border-color] duration-500 sm:w-72 hover:shadow-[0_0_60px_15px_rgba(43,166,160,0.3)] hover:scale-[1.025] dark:border-white/10 dark:bg-[#0b0b10]/85 ${
+          className={`portal-core relative grid aspect-square w-60 cursor-pointer place-items-center overflow-hidden rounded-full border border-white/10 bg-black/40 backdrop-blur-2xl shadow-[0_0_40px_10px_rgba(193,126,249,0.15)] transition-[box-shadow,transform,border-color] duration-500 sm:w-72 hover:shadow-[0_0_60px_15px_rgba(43,166,160,0.3)] hover:scale-[1.025] dark:border-white/10 dark:bg-[#0b0b10]/85 ${
             dragOver ? 'portal-breathe-strong' : ''
           } ${transmuting || uploading ? 'portal-ingest-disc' : ''}`}
         >
@@ -745,7 +745,7 @@ function MagicUploadPortal(props: PortalProps) {
                 <motion.span
                   animate={{ scale: [1, 1.14, 1], opacity: [0.7, 1, 0.7] }}
                   transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }}
-                  className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-[#2BA6A0] to-[#5D6FE8] text-white shadow-[0_0_24px_rgb(93 111 232/0.8)]"
+                  className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-[#2BA6A0] to-[#C17EF9] text-white shadow-[0_0_24px_rgb(193 126 249/0.8)]"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>
                 </motion.span>
@@ -760,7 +760,7 @@ function MagicUploadPortal(props: PortalProps) {
                 <motion.span
                   animate={{ scale: [1, 1.14, 1], opacity: [0.7, 1, 0.7] }}
                   transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }}
-                  className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-[#2BA6A0] to-[#5D6FE8] text-white shadow-[0_0_24px_rgb(93 111 232/0.8)]"
+                  className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-[#2BA6A0] to-[#C17EF9] text-white shadow-[0_0_24px_rgb(193 126 249/0.8)]"
                 >
                   <IconSparkles className="h-4 w-4" />
                 </motion.span>
@@ -780,7 +780,7 @@ function MagicUploadPortal(props: PortalProps) {
             </div>
           ) : (
             <div className="flex flex-col items-center gap-1 px-6 text-center">
-              <span className="grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-[#2BA6A0] to-[#5D6FE8] text-white shadow-[0_0_34px_rgb(93 111 232/0.6)]">
+              <span className="grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-[#2BA6A0] to-[#C17EF9] text-white shadow-[0_0_34px_rgb(193 126 249/0.6)]">
                 <IconSparkles className="h-7 w-7" />
               </span>
               <p className="font-display mt-2 text-xl font-black text-stone-900 dark:text-white">Summon Knowledge</p>
@@ -853,7 +853,7 @@ function MagicUploadPortal(props: PortalProps) {
                 onClick={() => onLangChange(l.code)}
                 className={`rounded-full border px-3 py-1 text-xs font-medium transition-all duration-200 ${
                   active
-                    ? 'border-transparent bg-gradient-to-r from-[#2BA6A0] to-[#5D6FE8] text-white shadow-[0_0_16px_rgb(93 111 232/0.45)]'
+                    ? 'border-transparent bg-gradient-to-r from-[#2BA6A0] to-[#C17EF9] text-white shadow-[0_0_16px_rgb(193 126 249/0.45)]'
                     : 'border-white/70 bg-white/60 text-stone-600 hover:border-[#2BA6A0]/70 hover:text-[#155956] dark:border-white/10 dark:bg-white/[0.04] dark:text-stone-400 dark:hover:text-[#73CEC2]'
                 }`}
               >
@@ -878,7 +878,7 @@ function ProgressRing({ percent }: { percent: number }) {
       <defs>
         <linearGradient id="portal-progress" x1="0" y1="0" x2="1" y2="1">
           <stop offset="0%" stopColor="#2BA6A0" />
-          <stop offset="100%" stopColor="#5D6FE8" />
+          <stop offset="100%" stopColor="#C17EF9" />
         </linearGradient>
       </defs>
       <circle cx="42" cy="42" r={r} fill="none" stroke="currentColor" strokeWidth="5" className="text-stone-200 dark:text-white/10" />
@@ -909,7 +909,7 @@ function PortalParticles() {
       {particles.map((p, i) => (
         <motion.span
           key={i}
-          className="absolute rounded-full bg-gradient-to-br from-[#73CEC2] to-[#5D6FE8] shadow-[0_0_12px_rgb(93 111 232/0.9)]"
+          className="absolute rounded-full bg-gradient-to-br from-[#73CEC2] to-[#C17EF9] shadow-[0_0_12px_rgb(193 126 249/0.9)]"
           style={{ width: p.size, height: p.size }}
           initial={{ x: Math.cos(p.angle) * p.radius, y: Math.sin(p.angle) * p.radius, opacity: 0.9, scale: 1 }}
           animate={{ x: Math.cos(p.angle) * 16, y: Math.sin(p.angle) * 16, opacity: 0, scale: 0.35 }}
@@ -946,11 +946,11 @@ function ValuePipeline({ flowStates, heading }: { flowStates: FlowState[]; headi
               whileHover={{ y: -4 }}
               className={`group shine-card relative overflow-hidden rounded-2xl border p-4 backdrop-blur-xl shadow-[inset_0_1px_0_rgb(255_255_255/0.5)] transition-shadow duration-300 ${
                 state === 'active'
-                  ? 'border-[#2BA6A0]/50 bg-white/80 shadow-[0_0_30px_rgb(43 166 160/0.16),inset_0_1px_0_rgb(255_255_255/0.6)] dark:border-[#5D6FE8]/40 dark:bg-white/[0.05]'
+                  ? 'border-[#2BA6A0]/50 bg-white/80 shadow-[0_0_30px_rgb(43 166 160/0.16),inset_0_1px_0_rgb(255_255_255/0.6)] dark:border-[#C17EF9]/40 dark:bg-white/[0.05]'
                   : state === 'done'
                     ? 'border-black/[0.05] bg-white/75 dark:border-white/10 dark:bg-white/[0.04]'
                     : 'border-black/[0.05] bg-white/70 dark:border-white/10 dark:bg-white/[0.03]'
-              } hover:shadow-[0_18px_50px_rgb(15_23_42/0.14)] dark:hover:shadow-[0_18px_50px_rgb(0_0_0/0.4)]`}
+              } hover:shadow-[0_18px_50px_rgb(46_22_66/0.14)] dark:hover:shadow-[0_18px_50px_rgb(0_0_0/0.4)]`}
             >
               <div className="flex items-center gap-2.5">
                 <span
@@ -979,7 +979,7 @@ function ValuePipeline({ flowStates, heading }: { flowStates: FlowState[]; headi
                       animate={{ scale: 1, opacity: 1 }}
                       exit={{ scale: 0.4, opacity: 0 }}
                       transition={transitions.micro}
-                      className="ml-auto grid h-6 w-6 place-items-center rounded-full bg-gradient-to-br from-[#2BA6A0] to-[#5D6FE8] shadow-[0_0_16px_rgb(43 166 160/0.7)]"
+                      className="ml-auto grid h-6 w-6 place-items-center rounded-full bg-gradient-to-br from-[#2BA6A0] to-[#C17EF9] shadow-[0_0_16px_rgb(43 166 160/0.7)]"
                     >
                       <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-white" />
                     </motion.span>
@@ -992,7 +992,7 @@ function ValuePipeline({ flowStates, heading }: { flowStates: FlowState[]; headi
                 <div
                   className={`h-full rounded-full transition-[width] duration-500 ease-out ${
                     state === 'done'
-                      ? 'w-full bg-gradient-to-r from-[#5D6FE8] to-[#2BA6A0]'
+                      ? 'w-full bg-gradient-to-r from-[#C17EF9] to-[#2BA6A0]'
                       : state === 'active'
                         ? `bar-sweep w-2/3 bg-gradient-to-r ${step.color}`
                         : 'w-1/4 bg-stone-300 dark:bg-white/15'
@@ -1022,14 +1022,40 @@ function thumbGrad(id: string): string {
   return THUMB_GRADS[h % THUMB_GRADS.length]
 }
 
-// Hairline-divided stat cells in the workspace header strip.
-function StatCell({ label, value, accent }: { label: string; value: string; accent: string }) {
+// Hairline-divided stat cells in the workspace header strip. The value
+// rolls up with the signature cinematic easing on mount and whenever it
+// changes (a new video landing, a mapping completing).
+function StatCell({ label, value, accent, suffix = '' }: { label: string; value: number; accent: string; suffix?: string }) {
   return (
     <div className="px-4 py-3 sm:px-5">
-      <p className={`font-display tabular text-xl font-bold tracking-tight sm:text-2xl ${accent}`}>{value}</p>
+      <p className={`font-display tabular text-xl font-bold tracking-tight sm:text-2xl ${accent}`}>
+        <CountUp value={value} suffix={suffix} />
+      </p>
       <p className="eyebrow mt-0.5 text-stone-400 dark:text-stone-500">{label}</p>
     </div>
   )
+}
+
+// Rolls a number 0 → value, re-running only when the target actually
+// changes. Written directly to the DOM so no extra re-renders occur.
+function CountUp({ value, suffix = '' }: { value: number; suffix?: string }) {
+  const ref = useRef<HTMLSpanElement>(null)
+  const fromRef = useRef(0)
+
+  useEffect(() => {
+    const from = fromRef.current
+    const controls = animate(from, value, {
+      duration: 0.9,
+      ease: [0.22, 1, 0.36, 1],
+      onUpdate: (v) => {
+        fromRef.current = v
+        if (ref.current) ref.current.textContent = `${Math.round(v)}${suffix}`
+      },
+    })
+    return () => controls.stop()
+  }, [value, suffix])
+
+  return <span ref={ref}>0{suffix}</span>
 }
 
 // Compact row inside the "Now processing" rail — calm, no giant cards.
@@ -1066,7 +1092,7 @@ function ProcessingRow({ video, onClick }: { video: Video; onClick: () => void }
         <div className="mt-1.5 flex items-center gap-3">
           <div className="h-1 w-full max-w-[12rem] overflow-hidden rounded-full bg-stone-200/80 dark:bg-white/10">
             <motion.div
-              className="bar-sweep h-full rounded-full bg-gradient-to-r from-[#2BA6A0] via-[#D4A34A] to-[#5D6FE8]"
+              className="bar-sweep h-full rounded-full bg-gradient-to-r from-[#2BA6A0] via-[#D4A34A] to-[#C17EF9]"
               initial={{ width: '8%' }}
               animate={{ width: `${pct}%` }}
               transition={{ duration: 0.8, ease: 'easeOut' }}
@@ -1151,7 +1177,7 @@ function KnowledgeCard({ video, onClick, onRetry }: { video: Video; onClick: () 
           failed
             ? 'border-red-500/20 shadow-[0_0_25px_-6px_rgba(239,68,68,0.2)] dark:border-red-500/25 dark:hover:shadow-[0_0_30px_-10px_rgba(239,68,68,0.5)]'
             : processing
-              ? 'border-[#5D6FE8]/30 shadow-[0_0_30px_-5px_rgba(93,111,232,0.4)] animate-pulse dark:border-[#5D6FE8]/30 dark:shadow-[0_0_38px_-6px_rgba(93,111,232,0.5)]'
+              ? 'border-[#C17EF9]/30 shadow-[0_0_30px_-5px_rgba(193,126,249,0.4)] animate-pulse dark:border-[#C17EF9]/30 dark:shadow-[0_0_38px_-6px_rgba(193,126,249,0.5)]'
               : done
                 ? 'border-black/[0.06] shadow-[0_18px_60px_rgba(15,23,42,0.10)] hover:shadow-[0_0_30px_-10px_rgba(43,166,160,0.8)] dark:border-white/10 dark:shadow-[0_18px_60px_rgba(0,0,0,0.4)]'
                 : 'border-black/[0.06] shadow-[0_18px_60px_rgba(15,23,42,0.10)]'
@@ -1162,10 +1188,10 @@ function KnowledgeCard({ video, onClick, onRetry }: { video: Video; onClick: () 
           className="pointer-events-none absolute inset-0 z-20 rounded-3xl opacity-0 transition-opacity duration-300"
           style={{
             opacity: spot.on ? 1 : 0,
-            background: `radial-gradient(420px circle at ${spot.x}% ${spot.y}%, rgb(93 111 232 / 0.10), transparent 62%)`,
+            background: `radial-gradient(420px circle at ${spot.x}% ${spot.y}%, rgb(193 126 249 / 0.10), transparent 62%)`,
           }}
         />
-        <div className="pointer-events-none absolute -inset-px z-10 rounded-3xl opacity-0 transition-opacity duration-300 group-hover:opacity-100 dark:bg-[radial-gradient(120%_80%_at_50%_0%,rgb(93 111 232/0.18),transparent_60%)]" />
+        <div className="pointer-events-none absolute -inset-px z-10 rounded-3xl opacity-0 transition-opacity duration-300 group-hover:opacity-100 dark:bg-[radial-gradient(120%_80%_at_50%_0%,rgb(193 126 249/0.18),transparent_60%)]" />
 
         <div className="relative aspect-video overflow-hidden">
           <div className={`absolute inset-0 bg-gradient-to-br transition-transform duration-500 group-hover:scale-[1.04] ${thumbGrad(video._id)}`}>
@@ -1192,7 +1218,7 @@ function KnowledgeCard({ video, onClick, onRetry }: { video: Video; onClick: () 
           {processing && (
             <div className="absolute inset-x-0 bottom-0 h-1 z-20">
               <motion.div
-                className="bar-sweep h-full bg-gradient-to-r from-[#2BA6A0] via-[#D4A34A] to-[#5D6FE8]"
+                className="bar-sweep h-full bg-gradient-to-r from-[#2BA6A0] via-[#D4A34A] to-[#C17EF9]"
                 initial={{ width: '8%' }}
                 animate={{ width: `${barWidth}%` }}
                 transition={{ duration: 0.8, ease: 'easeOut' }}
@@ -1216,7 +1242,7 @@ function KnowledgeCard({ video, onClick, onRetry }: { video: Video; onClick: () 
                 initial={{ opacity: 0, y: -8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ ...transitions.contentIn, delay: 0.08 }}
-                className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-xs font-medium text-[#5D6FE8] backdrop-blur-xl"
+                className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-xs font-medium text-[#C17EF9] backdrop-blur-xl"
               >
                 <FileText size={14} />
                 Summarized
@@ -1248,7 +1274,7 @@ function KnowledgeCard({ video, onClick, onRetry }: { video: Video; onClick: () 
                   <motion.span
                     animate={{ scale: [1, 1.12, 1], opacity: [0.75, 1, 0.75] }}
                     transition={{ duration: 1.3, repeat: Infinity, ease: 'easeInOut' }}
-                    className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-[#2BA6A0] to-[#5D6FE8] text-white shadow-[0_0_20px_rgb(93 111 232/0.7)]"
+                    className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-[#2BA6A0] to-[#C17EF9] text-white shadow-[0_0_20px_rgb(193 126 249/0.7)]"
                   >
                     <IconSparkles className="h-3.5 w-3.5" />
                   </motion.span>

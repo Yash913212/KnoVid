@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 
 type Size = 'sm' | 'md' | 'lg'
 
-// Gradient cobalt→violet icon tile — the brand mark treatment used for
+// Gradient orchid→violet icon tile — the brand mark treatment used for
 // logos, stat icons and step tiles. One source, consistent glow + ring.
 export function BrandTile({
   children,
@@ -22,8 +22,8 @@ export function BrandTile({
   }
   return (
     <span
-      className={`grid shrink-0 place-items-center bg-gradient-to-br from-[#586BE3] to-[#8793F2] text-white ring-1 ring-white/25 ${sizes[size]} ${
-        glow ? 'shadow-[0_0_20px_rgb(88_107_227/0.45)]' : ''
+      className={`grid shrink-0 place-items-center bg-gradient-to-br from-[#A855F7] to-[#E3C4FF] text-white ring-1 ring-white/25 ${sizes[size]} ${
+        glow ? 'shadow-[0_0_20px_rgb(168_85_247/0.45)]' : ''
       } ${className}`}
     >
       {children}

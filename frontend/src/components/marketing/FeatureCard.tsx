@@ -13,10 +13,10 @@ export default function FeatureCard({
   eyebrow: string
   title: string
   description: string
-  accent?: 'lime' | 'blue' | 'coral' | 'violet'
+  accent?: 'lime' | 'orchid' | 'coral' | 'violet'
 }) {
   return (
-    <article className={`feature-card feature-card-${accent}`}>
+    <article className={`feature-card shine-card feature-card-${accent}`}>
       <div className="feature-card-topline">
         <span className="feature-number">{index}</span>
         <span className="feature-icon">{icon}</span>

@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { motion } from 'motion/react'
 import { BookOpen, Command, LogOut, Plus, Search, Workflow, X } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { openCommandPalette } from '../CommandPalette'
 import ThemeToggle from '../ThemeToggle'
 import LogoMark from '../brand/LogoMark'
+import Magnetic from '../Magnetic'
 import { Button } from '../ui/Button'
 
 export default function AppShell() {
@@ -34,7 +36,18 @@ export default function AppShell() {
         <nav className="rail-nav" aria-label="Workspace navigation">
           {navItems.map((item) => {
             const active = location.pathname === '/app' && (location.hash === `#${item.hash}` || (!location.hash && item.hash === 'top'))
-            return <button type="button" key={item.hash} className={`rail-nav-item ${active ? 'rail-nav-item-active' : ''}`} onClick={() => goTo(item.hash)}>{item.icon}<span>{item.label}</span>{active && <i />}</button>
+            return (
+              <button type="button" key={item.hash} className={`rail-nav-item isolate ${active ? 'rail-nav-item-active' : ''}`} onClick={() => goTo(item.hash)}>
+                {active && (
+                  <motion.span
+                    layoutId="rail-nav-pill"
+                    className="rail-nav-pill"
+                    transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+                  />
+                )}
+                <span className="rail-nav-inner">{item.icon}<span>{item.label}</span></span>
+              </button>
+            )
           })}
         </nav>
         <div className="rail-divider" />
@@ -51,7 +64,7 @@ export default function AppShell() {
       <div className="workspace-content">
         <header className="workspace-topbar">
           <div className="topbar-left"><button type="button" className="mobile-rail-toggle" onClick={() => setMobileOpen(true)} aria-label="Open navigation"><span /><span /><span /></button><div className="breadcrumb"><span>Knowledge studio</span><i>/</i><strong>{location.pathname.startsWith('/video/') ? 'Universe' : 'Workspace'}</strong></div></div>
-          <div className="topbar-actions"><button type="button" className="topbar-search" onClick={openCommandPalette}><Search size={15} /><span>Search your library</span><kbd>⌘K</kbd></button><ThemeToggle /><Button size="sm" radius="xl" icon={<Plus size={15} />} onClick={() => goTo('portal')}>New import</Button></div>
+          <div className="topbar-actions"><button type="button" className="topbar-search" onClick={openCommandPalette}><Search size={15} /><span>Search your library</span><kbd>⌘K</kbd></button><ThemeToggle /><Magnetic strength={0.2}><Button size="sm" radius="xl" icon={<Plus size={15} />} onClick={() => goTo('portal')}>New import</Button></Magnetic></div>
         </header>
         <main className="workspace-main"><Outlet /></main>
       </div>

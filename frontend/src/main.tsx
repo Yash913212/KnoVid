@@ -7,7 +7,7 @@ import App from './App'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <MotionConfig reducedMotion="user">
+    <MotionConfig reducedMotion="never">
       <BrowserRouter>
         <App />
       </BrowserRouter>

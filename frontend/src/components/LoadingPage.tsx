@@ -36,7 +36,7 @@ export default function LoadingPage() {
             aria-hidden
             animate={{ opacity: [0.5, 1, 0.5], scale: [0.94, 1.04, 0.94] }}
             transition={{ duration: 2.6, repeat: Infinity, ease: 'easeInOut' }}
-            className="pointer-events-none absolute -inset-6 rounded-full bg-[radial-gradient(circle_at_center,rgb(93_111_232/0.28),transparent_68%)] blur-xl"
+            className="pointer-events-none absolute -inset-6 rounded-full bg-[radial-gradient(circle_at_center,rgb(193_126_249/0.28),transparent_68%)] blur-xl"
           />
           <motion.span
             aria-hidden

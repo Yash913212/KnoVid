@@ -20,11 +20,11 @@ const MOCK_SUMMARY_LINES = [
 
 const GRAPH_NODES = [
   { id: 0, label: 'Neural Networks', x: 200, y: 60, r: 8, color: '#2BA6A0' },
-  { id: 1, label: 'Backpropagation', x: 100, y: 140, r: 6, color: '#5D6FE8' },
+  { id: 1, label: 'Backpropagation', x: 100, y: 140, r: 6, color: '#C17EF9' },
   { id: 2, label: 'Gradient Descent', x: 310, y: 130, r: 6, color: '#73CEC2' },
-  { id: 3, label: 'Loss Function', x: 60, y: 220, r: 5, color: '#8793F2' },
+  { id: 3, label: 'Loss Function', x: 60, y: 220, r: 5, color: '#E3C4FF' },
   { id: 4, label: 'Chain Rule', x: 180, y: 210, r: 5, color: '#2BA6A0' },
-  { id: 5, label: 'Learning Rate', x: 340, y: 210, r: 5, color: '#5D6FE8' },
+  { id: 5, label: 'Learning Rate', x: 340, y: 210, r: 5, color: '#C17EF9' },
   { id: 6, label: 'Adam Optimizer', x: 270, y: 260, r: 4, color: '#D4A34A' },
 ]
 
@@ -79,7 +79,7 @@ function SpatialMappingCard() {
         <defs>
           <linearGradient id="showcase-edge" x1="0" y1="0" x2="1" y2="1">
             <stop offset="0%" stopColor="#2BA6A0" stopOpacity="0.6" />
-            <stop offset="100%" stopColor="#5D6FE8" stopOpacity="0.6" />
+            <stop offset="100%" stopColor="#C17EF9" stopOpacity="0.6" />
           </linearGradient>
           <filter id="glow">
             <feGaussianBlur stdDeviation="3" result="blur" />
@@ -150,7 +150,7 @@ function SpeakerIntelligenceCard() {
   return (
     <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-black/40 p-6 shadow-2xl backdrop-blur-xl">
       <div className="mb-4">
-        <p className="font-mono text-[10px] font-medium uppercase tracking-[0.24em] text-[#8793F2]">Speaker Intelligence</p>
+        <p className="font-mono text-[10px] font-medium uppercase tracking-[0.24em] text-[#E3C4FF]">Speaker Intelligence</p>
         <h3 className="font-display mt-1 text-lg font-black text-white">Know who said what, instantly.</h3>
       </div>
 
@@ -171,7 +171,7 @@ function SpeakerIntelligenceCard() {
                   className={`mb-1 inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold ${
                     isSpeaker1
                       ? 'bg-[#2BA6A0]/15 text-[#73CEC2]'
-                      : 'bg-[#5D6FE8]/15 text-[#8793F2]'
+                      : 'bg-[#C17EF9]/15 text-[#E3C4FF]'
                   }`}
                 >
                   {seg.speaker}
@@ -201,7 +201,7 @@ function AISynthesisCard() {
 
       <div className="space-y-2 rounded-2xl border border-white/10 bg-black/30 p-4">
         <div className="mb-3 flex items-center gap-2">
-          <span className="grid h-6 w-6 place-items-center rounded-lg bg-gradient-to-br from-[#2BA6A0] to-[#5D6FE8] shadow-[0_0_12px_rgb(93_111_232/0.5)]">
+          <span className="grid h-6 w-6 place-items-center rounded-lg bg-gradient-to-br from-[#2BA6A0] to-[#C17EF9] shadow-[0_0_12px_rgb(193_126_249/0.5)]">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
               <path d="M9.9 2.4 11 6l3.6 1.1-3.6 1.1L9.9 12l-1.1-3.8L5.2 7.1 8.8 6z" />
               <path d="m17 14 .8 2.4 2.4.8-2.4.8L17 20.4l-.8-2.4-2.4-.8 2.4-.8z" />

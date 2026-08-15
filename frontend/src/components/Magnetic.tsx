@@ -1,8 +1,10 @@
-import { useRef, useState, type ReactNode } from 'react'
+import { useRef, type ReactNode } from 'react'
+import { motion, useMotionValue, useSpring } from 'motion/react'
 import { usePrefersReducedMotion } from '../lib/motion'
 
 // Magnetic hover: the element is gently pulled toward the cursor and
-// springs back on leave. Wrap primary CTAs for a premium, tactile feel.
+// springs back on leave. Driven by motion values + springs so tracking
+// stays buttery and never re-renders. Wrap primary CTAs for a tactile feel.
 export default function Magnetic({
   children,
   strength = 0.22,
@@ -14,32 +16,33 @@ export default function Magnetic({
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const reduced = usePrefersReducedMotion()
-  const [offset, setOffset] = useState({ x: 0, y: 0 })
+  const x = useMotionValue(0)
+  const y = useMotionValue(0)
+  const spring = { stiffness: 190, damping: 16, mass: 0.4 } as const
+  const sx = useSpring(x, spring)
+  const sy = useSpring(y, spring)
 
   const onMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (reduced) return
     const el = ref.current
     if (!el) return
     const r = el.getBoundingClientRect()
-    setOffset({
-      x: (e.clientX - (r.left + r.width / 2)) * strength,
-      y: (e.clientY - (r.top + r.height / 2)) * strength,
-    })
+    x.set((e.clientX - (r.left + r.width / 2)) * strength)
+    y.set((e.clientY - (r.top + r.height / 2)) * strength)
   }
 
   return (
-    <div
+    <motion.div
       ref={ref}
       onMouseMove={onMove}
-      onMouseLeave={() => setOffset({ x: 0, y: 0 })}
-      className={`inline-block ${className}`}
-      style={{
-        transform: `translate(${offset.x}px, ${offset.y}px)`,
-        transition: 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)',
-        willChange: 'transform',
+      onMouseLeave={() => {
+        x.set(0)
+        y.set(0)
       }}
+      className={`inline-block ${className}`}
+      style={{ x: sx, y: sy, willChange: 'transform' }}
     >
       {children}
-    </div>
+    </motion.div>
   )
 }

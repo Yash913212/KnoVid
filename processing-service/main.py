@@ -763,14 +763,19 @@ async def call_llm(system: str, user: str) -> str | None:
         import httpx
         async with httpx.AsyncClient(timeout=120) as client:
             for provider, url, api_key, model in providers:
-                try:
-                    result = await _call_provider(client, provider, url, api_key, model, system, user)
-                    if result:
-                        return result
-                except Exception as e:
-                    print(f"{provider} call failed; trying next provider: {e}")
+                # Retry once: the first call after a cold start can fail while
+                # Ollama is still loading the model (returns an error, not a
+                # timeout). A single retry avoids a silent template fallback.
+                for attempt in range(2):
+                    try:
+                        result = await _call_provider(client, provider, url, api_key, model, system, user)
+                        if result:
+                            return result
+                        break
+                    except Exception as e:
+                        print(f"{provider} call failed (attempt {attempt + 1}/2): {e!r}")
     except Exception as e:
-        print(f"LLM client failed: {e}")
+        print(f"LLM client failed: {e!r}")
 
     return None
 

@@ -15,7 +15,7 @@ export function Badge({
     tangerine:
       'border-[#B8D96B]/40 bg-[#B8D96B]/10 text-[#5a7200] dark:border-[#B8D96B]/30 dark:text-[#B8D96B]',
     orchid:
-      'border-[#6E7FE8]/40 bg-[#6E7FE8]/10 text-[#3153bf] dark:border-[#6E7FE8]/30 dark:text-[#9eb0ff]',
+      'border-[#B06AE0]/40 bg-[#B06AE0]/10 text-[#8A48D0] dark:border-[#B06AE0]/30 dark:text-[#CDA3FF]',
     danger: 'border-red-500/30 bg-red-500/10 text-red-700 dark:border-red-500/25 dark:text-red-300',
     success: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:border-emerald-500/25 dark:text-emerald-300',
   }

@@ -15,7 +15,7 @@ export function Eyebrow({
   const tones: Record<Tone, string> = {
     default: 'text-stone-400 dark:text-stone-500',
     tangerine: 'text-[#1D7773] dark:text-[#73CEC2]',
-    orchid: 'text-[#4555C4] dark:text-[#8793F2]',
+    orchid: 'text-[#7E3AF2] dark:text-[#E3C4FF]',
   }
   return <p className={`eyebrow ${tones[tone]} ${className}`}>{children}</p>
 }

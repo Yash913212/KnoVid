@@ -9,13 +9,13 @@ import { useToast } from './Toast'
 // Warm / orchid speaker ramp — distinct hues, no blue family.
 const SPEAKER_COLORS: { tag: string; accent: string }[] = [
   { tag: 'bg-[#2BA6A0]/15 text-[#155956] dark:bg-[#2BA6A0]/20 dark:text-[#73CEC2]', accent: '#2BA6A0' },
-  { tag: 'bg-[#5D6FE8]/15 text-[#4555C4] dark:bg-[#5D6FE8]/20 dark:text-[#8793F2]', accent: '#5D6FE8' },
+  { tag: 'bg-[#C17EF9]/15 text-[#7E3AF2] dark:bg-[#C17EF9]/20 dark:text-[#E3C4FF]', accent: '#C17EF9' },
   { tag: 'bg-amber-100 text-amber-700', accent: '#C98F3D' },
   { tag: 'bg-orange-100 text-orange-700', accent: '#FB923C' },
   { tag: 'bg-pink-100 text-pink-700', accent: '#EC4899' },
   { tag: 'bg-rose-100 text-rose-700', accent: '#B75B6A' },
-  { tag: 'bg-fuchsia-100 text-fuchsia-700', accent: '#5D6FE8' },
-  { tag: 'bg-purple-100 text-purple-700', accent: '#7788DE' },
+  { tag: 'bg-fuchsia-100 text-fuchsia-700', accent: '#C17EF9' },
+  { tag: 'bg-purple-100 text-purple-700', accent: '#C08BF0' },
   { tag: 'bg-red-100 text-red-700', accent: '#EF4444' },
   { tag: 'bg-yellow-100 text-yellow-700', accent: '#EAB308' },
 ]
@@ -77,7 +77,7 @@ function highlight(text: string, query: string): React.ReactNode {
   while (idx >= 0) {
     if (idx > i) out.push(text.slice(i, idx))
     out.push(
-      <mark key={idx} className="rounded-sm bg-[#2BA6A0]/25 px-0.5 text-inherit dark:bg-[#5D6FE8]/30">{text.slice(idx, idx + query.length)}</mark>
+      <mark key={idx} className="rounded-sm bg-[#2BA6A0]/25 px-0.5 text-inherit dark:bg-[#C17EF9]/30">{text.slice(idx, idx + query.length)}</mark>
     )
     i = idx + query.length
     idx = lower.indexOf(qi, i)
@@ -210,7 +210,7 @@ function TranscriptSection({ videoId, segments, langLabel, onSeek }: TranscriptS
         <span className="text-xs text-gray-500 dark:text-stone-400">{segments.length} segments &middot; {groups.length} turns</span>
 
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          <div className={`relative flex items-center gap-1 rounded-xl border px-2 py-1.5 ${searchQuery ? 'border-[#2BA6A0]/60 dark:border-[#5D6FE8]/50' : 'border-stone-200 dark:border-white/10'} bg-white/80 dark:bg-stone-800/70`}>
+          <div className={`relative flex items-center gap-1 rounded-xl border px-2 py-1.5 ${searchQuery ? 'border-[#2BA6A0]/60 dark:border-[#C17EF9]/50' : 'border-stone-200 dark:border-white/10'} bg-white/80 dark:bg-stone-800/70`}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-stone-400"><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" strokeLinecap="round" /></svg>
             <input
               aria-label="Search transcript"
@@ -231,13 +231,13 @@ function TranscriptSection({ videoId, segments, langLabel, onSeek }: TranscriptS
           </div>
 
           <button type="button" onClick={copyTranscript} aria-label="Copy transcript" title="Copy transcript"
-            className="flex items-center gap-1.5 rounded-xl border border-stone-200 bg-white/80 px-2.5 py-1.5 text-xs font-medium text-stone-600 transition-colors hover:border-[#2BA6A0]/60 hover:text-[#1D7773] dark:border-white/10 dark:bg-stone-800/70 dark:text-stone-300 dark:hover:border-[#5D6FE8]/50 dark:hover:text-[#73CEC2]">
+            className="flex items-center gap-1.5 rounded-xl border border-stone-200 bg-white/80 px-2.5 py-1.5 text-xs font-medium text-stone-600 transition-colors hover:border-[#2BA6A0]/60 hover:text-[#1D7773] dark:border-white/10 dark:bg-stone-800/70 dark:text-stone-300 dark:hover:border-[#C17EF9]/50 dark:hover:text-[#73CEC2]">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" /></svg>
             Copy
           </button>
 
           <button type="button" onClick={exportSubtitles.bind(null, 'vtt')} title="Export .VTT subtitles"
-            className="rounded-xl border border-stone-200 bg-white/80 px-2.5 py-1.5 text-xs font-medium text-stone-600 transition-colors hover:border-[#2BA6A0]/60 hover:text-[#1D7773] dark:border-white/10 dark:bg-stone-800/70 dark:text-stone-300 dark:hover:border-[#5D6FE8]/50 dark:hover:text-[#8793F2]">
+            className="rounded-xl border border-stone-200 bg-white/80 px-2.5 py-1.5 text-xs font-medium text-stone-600 transition-colors hover:border-[#2BA6A0]/60 hover:text-[#1D7773] dark:border-white/10 dark:bg-stone-800/70 dark:text-stone-300 dark:hover:border-[#C17EF9]/50 dark:hover:text-[#E3C4FF]">
             .VTT
           </button>
           <button type="button" onClick={exportSubtitles.bind(null, 'srt')} title="Export .SRT subtitles"
@@ -372,14 +372,14 @@ function TranscriptSection({ videoId, segments, langLabel, onSeek }: TranscriptS
                             >
                               <span className="seg-bar" />
                               <span
-                                className={`mt-0.5 shrink-0 rounded-md border px-1.5 py-0.5 whitespace-nowrap font-mono text-[11px] backdrop-blur-sm ${active ? 'font-bold border-[#2BA6A0]/40 bg-[#2BA6A0]/10 text-[#1D7773] dark:border-[#5D6FE8]/40 dark:bg-[#5D6FE8]/10 dark:text-[#73CEC2]' : 'border-transparent text-gray-400 dark:text-stone-500'} group-hover:border-[#2BA6A0]/30 group-hover:text-[#155956] dark:group-hover:text-[#73CEC2]`}
+                                className={`mt-0.5 shrink-0 rounded-md border px-1.5 py-0.5 whitespace-nowrap font-mono text-[11px] backdrop-blur-sm ${active ? 'font-bold border-[#2BA6A0]/40 bg-[#2BA6A0]/10 text-[#1D7773] dark:border-[#C17EF9]/40 dark:bg-[#C17EF9]/10 dark:text-[#73CEC2]' : 'border-transparent text-gray-400 dark:text-stone-500'} group-hover:border-[#2BA6A0]/30 group-hover:text-[#155956] dark:group-hover:text-[#73CEC2]`}
                               >
                                 {formatTime(seg.start)}
                               </span>
                               <p className={`flex-1 text-sm leading-relaxed ${active ? 'text-[#9A3412] dark:text-[#FFE4D6]' : 'text-gray-800 dark:text-stone-200'}`}>{seg.text}</p>
                               <span className="mt-0.5 shrink-0 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
                                 <span
-                                  className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold text-white shadow-[0_0_12px_rgb(93_111_232/0.5)]"
+                                  className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold text-white shadow-[0_0_12px_rgb(193_126_249/0.5)]"
                                   style={{ background: accent }}
                                 >
                                   <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86a1 1 0 0 0-1.5.86z" /></svg>

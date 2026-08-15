@@ -54,7 +54,7 @@ export function Segmented<T extends string>({
             {active && (
               <motion.span
                 layoutId={layoutId}
-                className="absolute inset-0 -z-10 rounded-full bg-gradient-to-r from-[#2BA6A0] to-[#5D6FE8] shadow-[0_4px_16px_rgb(93_111_232/0.35)]"
+                className="absolute inset-0 -z-10 rounded-full bg-gradient-to-r from-[#2BA6A0] to-[#C17EF9] shadow-[0_4px_16px_rgb(193_126_249/0.35)]"
                 transition={{ type: 'spring', stiffness: 420, damping: 32 }}
               />
             )}
