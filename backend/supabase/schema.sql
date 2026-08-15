@@ -13,6 +13,7 @@ create table if not exists public.videos (
   target_language text not null default 'en',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
+  
 );
 
 create table if not exists public.transcripts (

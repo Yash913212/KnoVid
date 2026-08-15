@@ -1,11 +1,15 @@
 import os
-import subprocess
 import re
+import sys
+import secrets
+import socket
+import ipaddress
+import subprocess
 import asyncio
 from pathlib import Path
 from collections import Counter
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -31,6 +35,18 @@ load_dotenv(Path(__file__).with_name(".env"))
 UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", str(DEFAULT_UPLOAD_DIR))).resolve()
 MODEL_SIZE = os.getenv("WHISPER_MODEL", "base")
 HF_TOKEN = os.getenv("HF_TOKEN", "")
+
+# Optional shared secret. When set, every endpoint requires the backend to
+# present it via the X-Processing-Auth header (constant-time comparison).
+PROCESSING_AUTH_TOKEN = os.getenv("PROCESSING_AUTH_TOKEN", "")
+
+
+def require_auth(request: Request):
+    if not PROCESSING_AUTH_TOKEN:
+        return
+    provided = request.headers.get("x-processing-auth", "")
+    if not secrets.compare_digest(provided, PROCESSING_AUTH_TOKEN):
+        raise HTTPException(401, "Unauthorized")
 
 _whisper_model = None
 _diarization_pipeline = None
@@ -93,6 +109,8 @@ class ProcessResponse(BaseModel):
     language: str
     segments: list[SegmentOut]
     filePath: str | None = None
+    # Real media title from the source platform (None for uploads).
+    title: str | None = None
 
 
 class AnalyzeRequest(BaseModel):
@@ -121,12 +139,37 @@ class AnalyzeResponse(BaseModel):
     edges: list[GraphEdge]
 
 
+def fetch_title(url: str) -> str | None:
+    """Resolve the source page title via yt-dlp (metadata only, no download)."""
+    try:
+        result = subprocess.run(
+            [
+                sys.executable, "-m", "yt_dlp",
+                "--no-playlist",
+                "--js-runtimes", "node",
+                "--remote-components", "ejs:github",
+                "--user-agent", YT_DLP_UA,
+                "--no-download", "--print", "%(title)s",
+                url,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        title = (result.stdout or "").strip().splitlines()
+        return title[0][:200] if title else None
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return None
+
+
 @app.post("/process", response_model=ProcessResponse)
-def process_video(req: ProcessRequest):
+def process_video(req: ProcessRequest, _auth: None = Depends(require_auth)):
     video_path: Path | None = None
+    title: str | None = None
 
     if req.url:
         video_path = asyncio.run(download_video(req.url, req.videoId))
+        title = fetch_title(req.url)
     elif req.filePath:
         video_path = Path(req.filePath)
     else:
@@ -156,11 +199,12 @@ def process_video(req: ProcessRequest):
         language=output_language,
         segments=segments,
         filePath=str(video_path),
+        title=title,
     )
 
 
 @app.post("/analyze", response_model=AnalyzeResponse)
-def analyze_transcript(req: AnalyzeRequest):
+def analyze_transcript(req: AnalyzeRequest, _auth: None = Depends(require_auth)):
     nodes: list[GraphNode] = []
     edges: list[GraphEdge] = []
     seen_id: set[str] = set()
@@ -358,7 +402,36 @@ STOP_WORDS = {
 }
 
 
+def _validate_download_url(url: str):
+    """Reject non-http(s) URLs and hosts that resolve to private/loopback
+    addresses so the service cannot be used as an SSRF proxy."""
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        raise HTTPException(400, "Only http/https URLs are supported")
+    hostname = parsed.hostname.lower()
+    if hostname in {"localhost", "127.0.0.1", "::1", "0.0.0.0"}:
+        raise HTTPException(400, "URL host is not allowed")
+    try:
+        ip = ipaddress.ip_address(hostname)
+    except ValueError:
+        try:
+            ip = ipaddress.ip_address(socket.gethostbyname(hostname))
+        except OSError:
+            raise HTTPException(400, "URL host could not be resolved")
+    if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+        raise HTTPException(400, "URL host is not allowed")
+
+
+# Browser-like UA reduces YouTube's bot detection (HTTP 403 on download).
+YT_DLP_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+)
+
+
 async def download_video(url: str, video_id: str) -> Path | None:
+    _validate_download_url(url)
+
     output_dir = UPLOAD_DIR
     output_dir.mkdir(parents=True, exist_ok=True)
     output_template = str(output_dir / f"{video_id}.%(ext)s")
@@ -370,28 +443,41 @@ async def download_video(url: str, video_id: str) -> Path | None:
     if parsed.hostname and parsed.hostname.lower() in {"youtube.com", "www.youtube.com", "m.youtube.com"} and query.get("v"):
         url = urlunparse(parsed._replace(query=urlencode({"v": query["v"][0]})))
 
-    try:
-        subprocess.run(
-            [
-                "yt-dlp",
-                "--no-playlist",
-                "--js-runtimes", "node",
-                "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
-                "-o", output_template,
-                url,
-            ],
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=600,
-        )
-    except subprocess.CalledProcessError as e:
-        detail = (e.stderr or e.stdout or "unknown downloader error").strip()
-        raise HTTPException(500, f"yt-dlp failed: {detail[-2000:]}")
-    except subprocess.TimeoutExpired:
-        raise HTTPException(500, "Download timed out")
-    except FileNotFoundError:
-        raise HTTPException(500, "yt-dlp is not installed or is not available on PATH")
+    base_args = [
+        sys.executable, "-m", "yt_dlp",
+        "--no-playlist",
+        "--js-runtimes", "node",
+        "--remote-components", "ejs:github",
+        "--user-agent", YT_DLP_UA,
+        "--add-header", "Accept-Language:en-US,en;q=0.9",
+        "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+        "-o", output_template,
+    ]
+
+    # YouTube occasionally bot-blocks the default client with HTTP 403 or
+    # challenge failures. Retry once with alternate player clients first.
+    attempts = [
+        base_args + [url],
+        base_args + ["--extractor-args", "youtube:player_client=default,android_vr,tv", url],
+    ]
+
+    transient_markers = ("403", "challenge", "unable to download video data", "Requested format is not available")
+    last_detail = "unknown downloader error"
+    for attempt in attempts:
+        try:
+            subprocess.run(attempt, check=True, capture_output=True, text=True, timeout=600)
+            break
+        except subprocess.CalledProcessError as e:
+            detail = (e.stderr or e.stdout or "unknown downloader error").strip()
+            last_detail = detail[-2000:]
+            if not any(m in detail.lower() for m in transient_markers):
+                raise HTTPException(500, f"yt-dlp failed: {last_detail}")
+        except subprocess.TimeoutExpired:
+            raise HTTPException(500, "Download timed out")
+        except FileNotFoundError:
+            raise HTTPException(500, "yt-dlp is not installed or is not available on PATH")
+    else:
+        raise HTTPException(500, f"yt-dlp failed: {last_detail}")
 
     for f in output_dir.iterdir():
         if f.stem.startswith(video_id) and f.suffix in (".mp4", ".mkv", ".webm"):
@@ -699,7 +785,7 @@ def format_transcript(segments: list[SegmentOut]) -> str:
 
 
 @app.post("/generate", response_model=GenerateResponse)
-async def generate_content(req: GenerateRequest):
+async def generate_content(req: GenerateRequest, _auth: None = Depends(require_auth)):
     transcript_text = format_transcript(req.segments)
     full_text = " ".join(s.text for s in req.segments)
 
@@ -722,7 +808,7 @@ async def generate_content(req: GenerateRequest):
 
 
 @app.post("/chat", response_model=ChatResponse)
-async def chat_with_video(req: ChatRequest):
+async def chat_with_video(req: ChatRequest, _auth: None = Depends(require_auth)):
     transcript_text = format_transcript(req.segments)
 
     full_text = " ".join(s.text for s in req.segments)
@@ -764,7 +850,7 @@ def _fuse_context(segments: list[SegmentOut], a: str, b: str) -> list[FuseCitati
 
 
 @app.post("/fuse", response_model=FuseResponse)
-async def fuse_concepts(req: FuseRequest):
+async def fuse_concepts(req: FuseRequest, _auth: None = Depends(require_auth)):
     citations = _fuse_context(req.segments, req.a, req.b)
 
     if not citations:
@@ -898,7 +984,7 @@ class TranslateResponse(BaseModel):
 
 
 @app.post("/translate", response_model=TranslateResponse)
-async def translate_content(req: TranslateRequest):
+async def translate_content(req: TranslateRequest, _auth: None = Depends(require_auth)):
     if not llm_available():
         return TranslateResponse(
             videoId=req.videoId,

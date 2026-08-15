@@ -20,3 +20,11 @@ export function parseYouTubeUrl(url: string): string | null {
 export function isYouTubeUrl(url: string): boolean {
   return parseYouTubeUrl(url) !== null
 }
+
+export function errorMessage(err: unknown, fallback: string): string {
+  if (typeof err === 'object' && err !== null) {
+    const anyErr = err as { message?: string; response?: { data?: { error?: string } } }
+    return anyErr.response?.data?.error || anyErr.message || fallback
+  }
+  return fallback
+}

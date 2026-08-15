@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { BrainCircuit, Check, Eye, Maximize2, Minimize2, RotateCcw, Sparkles } from 'lucide-react'
 import { useFetch } from '../hooks/useFetch'
-import { getVideo, retryVideo, isProcessing, type Video } from '../api/videos'
+import { getVideo, retryVideo, isProcessing, STATUS_DOTS, STATUS_PIPELINE_STEP, type Video } from '../api/videos'
 import { getTranscript, type Transcript, type Segment } from '../api/transcripts'
 import { getGraph, type Graph, type GraphNode } from '../api/graphs'
 import { translateVideo } from '../api/translate'
@@ -15,11 +15,14 @@ import {
 } from '../api/generate'
 import { formatTime } from '../utils'
 import { getResume, setResume, clearResume } from '../lib/resume'
-import { contentStream, staggerContainer, staggerItem, materialize, chatBubble, transitions, tw, usePrefersReducedMotion, useStaggeredScrollAnimation } from '../lib/motion'
+import { setPlayhead } from '../lib/playhead'
+import { contentStream, staggerContainer, staggerItem, materialize, chatBubble, transitions, tw, usePrefersReducedMotion } from '../lib/motion'
 import { useToast } from '../components/Toast'
 import { Button } from '../components/ui/Button'
 import { GlassCard } from '../components/ui/GlassCard'
 import { Eyebrow } from '../components/ui/Eyebrow'
+import { Spinner } from '../components/ui/Spinner'
+import TranscriptSection from '../components/TranscriptSection'
 import VideoPlayer, { type VideoPlayerHandle } from '../components/VideoPlayer'
 const TopicTree = lazy(() => import('../components/TopicTree'))
 const KnowledgeGraph = lazy(() => import('../components/KnowledgeGraph'))
@@ -38,48 +41,6 @@ const LANGUAGES = [
   { code: 'ko', label: 'Korean' },
 ]
 
-// Warm / orchid speaker ramp — distinct hues, no blue family.
-// Speaker 1 → Tangerine, Speaker 2 → Orchid, then a warm fallback ramp.
-const SPEAKER_COLORS: { tag: string; accent: string }[] = [
-  { tag: 'bg-[#2BA6A0]/15 text-[#155956] dark:bg-[#2BA6A0]/20 dark:text-[#73CEC2]', accent: '#2BA6A0' },
-  { tag: 'bg-[#5D6FE8]/15 text-[#4555C4] dark:bg-[#5D6FE8]/20 dark:text-[#8793F2]', accent: '#5D6FE8' },
-  { tag: 'bg-amber-100 text-amber-700', accent: '#C98F3D' },
-  { tag: 'bg-orange-100 text-orange-700', accent: '#FB923C' },
-  { tag: 'bg-pink-100 text-pink-700', accent: '#EC4899' },
-  { tag: 'bg-rose-100 text-rose-700', accent: '#B75B6A' },
-  { tag: 'bg-fuchsia-100 text-fuchsia-700', accent: '#5D6FE8' },
-  { tag: 'bg-purple-100 text-purple-700', accent: '#7788DE' },
-  { tag: 'bg-red-100 text-red-700', accent: '#EF4444' },
-  { tag: 'bg-yellow-100 text-yellow-700', accent: '#EAB308' },
-]
-
-const speakerColorMap = new Map<string, { tag: string; accent: string }>()
-let colorIdx = 0
-
-function getSpeakerColor(speaker: string): { tag: string; accent: string } {
-  if (!speakerColorMap.has(speaker)) {
-    speakerColorMap.set(speaker, SPEAKER_COLORS[colorIdx % SPEAKER_COLORS.length])
-    colorIdx++
-  }
-  return speakerColorMap.get(speaker)!
-}
-
-interface Group { speaker: string; segments: Segment[] }
-
-function groupBySpeaker(segments: Segment[]): Group[] {
-  const groups: Group[] = []
-  for (const seg of segments) {
-    const speaker = seg.speaker || 'Speaker'
-    const last = groups[groups.length - 1]
-    if (last && last.speaker === speaker) {
-      last.segments.push(seg)
-    } else {
-      groups.push({ speaker, segments: [seg] })
-    }
-  }
-  return groups
-}
-
 const ENTITY_ICONS: Record<string, string> = {
   PERSON: '👤', ORG: '🏢', GPE: '📍', LOC: '📍',
   PRODUCT: '📦', EVENT: '📅', WORK_OF_ART: '🎨', LAW: '⚖️',
@@ -88,39 +49,6 @@ const ENTITY_ICONS: Record<string, string> = {
 type MainTab = 'transcript' | 'graph' | 'generate' | 'recall'
 type GraphView = 'neural' | 'tree' | 'network' | 'list'
 
-function vttTime(seconds: number): string {
-  const s = Math.max(0, seconds)
-  const h = Math.floor(s / 3600)
-  const m = Math.floor((s % 3600) / 60)
-  const sec = Math.floor(s % 60)
-  const ms = Math.round((s % 1) * 1000)
-  const pad = (n: number, len = 2) => n.toString().padStart(len, '0')
-  return `${pad(h)}:${pad(m)}:${pad(sec)}.${pad(ms, 3)}`
-}
-
-function srtTime(seconds: number): string {
-  return vttTime(seconds).replace('.', ',')
-}
-
-function highlight(text: string, query: string): React.ReactNode {
-  if (!query) return text
-  const qi = query.toLowerCase()
-  const lower = text.toLowerCase()
-  const out: React.ReactNode[] = []
-  let i = 0
-  let idx = lower.indexOf(qi)
-  while (idx >= 0) {
-    if (idx > i) out.push(text.slice(i, idx))
-    out.push(
-      <mark key={idx} className="rounded-sm bg-[#2BA6A0]/25 px-0.5 text-inherit dark:bg-[#5D6FE8]/30">{text.slice(idx, idx + query.length)}</mark>
-    )
-    i = idx + query.length
-    idx = lower.indexOf(qi, i)
-  }
-  if (i < text.length) out.push(text.slice(i))
-  return out.length ? out : text
-}
-
 export default function VideoDetail() {
   const { id } = useParams<{ id: string }>()
   const [mainTab, setMainTab] = useState<MainTab>('transcript')
@@ -128,22 +56,13 @@ export default function VideoDetail() {
   const [targetLang, setTargetLang] = useState('')
   const [translatedSegments, setTranslatedSegments] = useState<Segment[] | null>(null)
   const [translatedLabels, setTranslatedLabels] = useState<Record<string, string> | null>(null)
+  const [translatedLang, setTranslatedLang] = useState<string | null>(null)
   const [translating, setTranslating] = useState(false)
-  const [currentTime, setCurrentTime] = useState(0)
   const lastSavedResume = useRef(0)
   const playerRef = useRef<VideoPlayerHandle>(null)
-  const transcriptRef = useRef<HTMLDivElement>(null)
-  const segmentEls = useRef<Map<number, HTMLElement>>(new Map())
-  const reduced = usePrefersReducedMotion()
   const [retrying, setRetrying] = useState(false)
   const [refreshTick, setRefreshTick] = useState(0)
-  const [autoScroll, setAutoScroll] = useState(true)
   const [resumeAt, setResumeAt] = useState<number | null>(() => (id ? getResume(id) : null))
-  const [searchQuery, setSearchQuery] = useState('')
-  const [activeMatch, setActiveMatch] = useState(0)
-  const matchEls = useRef<Map<number, HTMLElement>>(new Map())
-  const [manualPaused, setManualPaused] = useState(false)
-  const manualScrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const navigate = useNavigate()
   const { toast } = useToast()
@@ -151,7 +70,7 @@ export default function VideoDetail() {
   const { data: video, loading: loadingVideo } = useFetch<Video | null>(
     () => (id ? getVideo(id) : Promise.reject()), [id, refreshTick]
   )
-  const { data: transcript, loading: loadingTranscript } = useFetch<Transcript | null>(
+  const { data: transcript } = useFetch<Transcript | null>(
     () => (id && (video?.status === 'analyzing' || video?.status === 'done') ? getTranscript(id).catch(() => null) : Promise.resolve(null)), [id, video?.status, refreshTick]
   )
   const { data: graph } = useFetch<Graph | null>(
@@ -162,6 +81,7 @@ export default function VideoDetail() {
     if (!id || !transcript || !targetLang) {
       setTranslatedSegments(null)
       setTranslatedLabels(null)
+      setTranslatedLang(null)
       return
     }
     let cancelled = false
@@ -171,33 +91,35 @@ export default function VideoDetail() {
         if (!cancelled) {
           setTranslatedSegments(res.segments)
           setTranslatedLabels(res.nodeLabels)
+          setTranslatedLang(targetLang)
         }
       })
       .catch(() => {
-        if (!cancelled) toast('Could not translate transcript', 'error')
+        if (!cancelled) {
+          setTranslatedLang(null)
+          toast('Could not translate transcript', 'error')
+        }
       })
       .finally(() => {
         if (!cancelled) setTranslating(false)
       })
     return () => { cancelled = true }
-  }, [id, transcript, targetLang])
+  }, [id, transcript, targetLang, toast])
 
   useEffect(() => {
     if (!id || !video || !isProcessing(video.status)) return
     const interval = setInterval(async () => {
       try {
         const updated = await getVideo(id)
-        if (!isProcessing(updated.status)) {
-          setRefreshTick((t) => t + 1)
-        }
+        if (updated.status !== video.status) setRefreshTick((t) => t + 1)
       } catch {}
     }, 4000)
     return () => clearInterval(interval)
   }, [id, video])
 
   const displaySegments = useMemo(
-    () => (translatedSegments && targetLang ? translatedSegments : transcript?.segments ?? []),
-    [translatedSegments, transcript, targetLang]
+    () => (translatedSegments && translatedLang === targetLang ? translatedSegments : transcript?.segments ?? []),
+    [translatedSegments, translatedLang, transcript, targetLang]
   )
 
   // Recall is built from the transcript itself: every prompt remains tied to
@@ -218,43 +140,13 @@ export default function VideoDetail() {
 
   const displayNodes: GraphNode[] = useMemo(() => {
     if (!graph) return []
-    if (!translatedLabels || !targetLang) return graph.nodes
+    if (!translatedLabels || translatedLang !== targetLang) return graph.nodes
     return graph.nodes.map((n) => ({
       ...n,
       label: translatedLabels[n.id] || n.label,
     }))
-  }, [graph, translatedLabels, targetLang])
+  }, [graph, translatedLabels, translatedLang, targetLang])
 
-  const groups = useMemo(() => (displaySegments.length > 0 ? groupBySpeaker(displaySegments) : []), [displaySegments])
-  const { ref: staggerScrollRef, visibleItems: visibleTranscriptGroups } = useStaggeredScrollAnimation(groups.length)
-
-  const flatSegments = useMemo(() => {
-    const out: { speaker: string; seg: Segment; idx: number }[] = []
-    let i = 0
-    for (const g of groups) for (const seg of g.segments) out.push({ speaker: g.speaker, seg, idx: i++ })
-    return out
-  }, [groups])
-
-  const searchQueryNorm = searchQuery.trim().toLowerCase()
-  const matches = useMemo(
-    () => (searchQueryNorm ? flatSegments.filter((f) => f.seg.text.toLowerCase().includes(searchQueryNorm)) : []),
-    [flatSegments, searchQueryNorm]
-  )
-  const searching = searchQueryNorm.length > 0 && matches.length > 0
-
-  useEffect(() => setActiveMatch(0), [searchQuery])
-  useEffect(() => {
-    if (!searching) return
-    const el = matchEls.current.get(activeMatch)
-    if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
-  }, [activeMatch, searching])
-
-  const goMatch = (dir: 1 | -1) => {
-    if (matches.length === 0) return
-    const next = (activeMatch + dir + matches.length) % matches.length
-    setActiveMatch(next)
-    handleSeek(matches[next].seg.start)
-  }
   const entities = useMemo(() => displayNodes.filter((n) => n.type === 'entity') ?? [], [displayNodes])
   const topics = useMemo(() => displayNodes.filter((n) => n.type === 'topic') ?? [], [displayNodes])
   const keywords = useMemo(() => displayNodes.filter((n) => n.type === 'keyword') ?? [], [displayNodes])
@@ -263,10 +155,11 @@ export default function VideoDetail() {
     playerRef.current?.seekTo(seconds)
   }, [])
 
-  // Track playhead + persist a resume position (throttled, ~5s).
+  // Track playhead (via the external store, so the page does not re-render at
+  // playback rate) + persist a resume position (throttled, ~5s).
   const handleTimeUpdate = useCallback(
     (seconds: number) => {
-      setCurrentTime(seconds)
+      setPlayhead(seconds)
       if (!id) return
       const dur = video?.duration ?? 0
       if (dur > 0 && seconds >= dur - 5) {
@@ -286,64 +179,6 @@ export default function VideoDetail() {
     setResumeAt(null)
   }
 
-  const copyTranscript = async () => {
-    const text = flatSegments
-      .map((f) => `[${formatTime(f.seg.start)}] ${f.speaker}: ${f.seg.text}`)
-      .join('\n')
-    try {
-      await navigator.clipboard.writeText(text)
-      toast('Transcript copied to clipboard', 'success')
-    } catch {
-      toast('Copy failed', 'error')
-    }
-  }
-
-  const exportSubtitles = (format: 'vtt' | 'srt') => {
-    const cue = flatSegments
-      .map((f, i) => {
-        const start = format === 'vtt' ? vttTime(f.seg.start) : srtTime(f.seg.start)
-        const end = format === 'vtt' ? vttTime(f.seg.end) : srtTime(f.seg.end)
-        const body = `${start} --> ${end}\n${f.speaker}: ${f.seg.text}`
-        return format === 'vtt' ? body : `${i + 1}\n${body}`
-      })
-      .join('\n\n')
-    const file = format === 'vtt' ? `WEBVTT\n\n${cue}\n` : cue
-    const blob = new Blob([file], { type: format === 'vtt' ? 'text/vtt' : 'text/plain' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `knovid-${id?.slice(-8)}.${format}`
-    a.click()
-    URL.revokeObjectURL(url)
-    toast(`Exported as .${format.toUpperCase()}`, 'success')
-  }
-
-  // ── Transcript ↔ playback sync ────────────────────────────────
-  const activeSegmentIdx = useMemo(() => {
-    if (displaySegments.length === 0) return -1
-    let idx = -1
-    for (let i = 0; i < displaySegments.length; i++) {
-      if (currentTime >= displaySegments[i].start) idx = i
-      else break
-    }
-    return idx
-  }, [displaySegments, currentTime])
-
-  useEffect(() => {
-    if (activeSegmentIdx < 0 || reduced || !autoScroll || manualPaused) return
-    const el = segmentEls.current.get(activeSegmentIdx)
-    if (el && transcriptRef.current) {
-      el.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
-    }
-  }, [activeSegmentIdx, reduced, autoScroll, manualPaused])
-
-  // Pausing auto-scroll while the user scrolls, resuming after 3s of inactivity.
-  const pauseAutoScroll = useCallback(() => {
-    if (manualScrollTimer.current) clearTimeout(manualScrollTimer.current)
-    setManualPaused(true)
-    manualScrollTimer.current = setTimeout(() => setManualPaused(false), 3000)
-  }, [])
-
   const originalLang = transcript?.language || 'en'
 
   const handleRetry = async () => {
@@ -352,13 +187,14 @@ export default function VideoDetail() {
     try {
       await retryVideo(id)
       setRefreshTick((t) => t + 1)
+      setRetrying(false)
     } catch {
       setRetrying(false)
       toast('Could not retry processing', 'error')
     }
   }
 
-  const loading = loadingVideo || loadingTranscript
+  const loading = loadingVideo
   if (loading) {
     return <WorkspaceSkeleton />
   }
@@ -405,7 +241,7 @@ export default function VideoDetail() {
           animate={{ opacity: 1, y: 0 }}
           transition={transitions.content}
         >
-          <VideoPlayer ref={playerRef} url={video.url} filePath={video.filePath} onTimeUpdate={handleTimeUpdate} />
+          <VideoPlayer ref={playerRef} url={video.url} filePath={video.filePath} title={video.originalName} onTimeUpdate={handleTimeUpdate} />
           {resumeAt != null && resumeAt > 15 && video.status === 'done' && (
             <motion.button
               type="button"
@@ -460,7 +296,7 @@ export default function VideoDetail() {
             >
               {translating ? (
                 <Chip tone="orchid"><Spinner /> Translating…</Chip>
-              ) : translatedSegments ? (
+              ) : translatedLang === targetLang ? (
                 <Chip tone="tangerine">
                   → {LANGUAGES.find((l) => l.code === targetLang)?.label}
                 </Chip>
@@ -508,203 +344,12 @@ export default function VideoDetail() {
               transition={transitions.micro}
             >
               {mainTab === 'transcript' && (displaySegments.length > 0 ? (
-                <section>
-                  <div className="mb-4 flex flex-wrap items-center gap-2">
-                    <span className="rounded-full border border-[#2BA6A0]/40 bg-[#2BA6A0]/10 px-2.5 py-0.5 text-xs font-semibold uppercase text-[#155956] dark:border-[#2BA6A0]/30 dark:bg-[#2BA6A0]/[0.08] dark:text-[#73CEC2]">
-                      {targetLang || originalLang}
-                    </span>
-                    <span className="text-xs text-gray-500 dark:text-stone-400">{displaySegments.length} segments &middot; {groups.length} turns</span>
-
-                    <div className="ml-auto flex flex-wrap items-center gap-2">
-                      <div className={`relative flex items-center gap-1 rounded-xl border px-2 py-1.5 ${searchQuery ? 'border-[#2BA6A0]/60 dark:border-[#5D6FE8]/50' : 'border-stone-200 dark:border-white/10'} bg-white/80 dark:bg-stone-800/70`}>
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-stone-400"><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" strokeLinecap="round" /></svg>
-                        <input
-                          aria-label="Search transcript"
-                          value={searchQuery}
-                          onChange={(e) => setSearchQuery(e.target.value)}
-                          placeholder="Search transcript…"
-                          className="w-28 bg-transparent text-xs text-stone-800 outline-none placeholder:text-stone-400 sm:w-36 dark:text-stone-100 dark:placeholder:text-stone-500"
-                        />
-                        {searching && (
-                          <span className="whitespace-nowrap font-mono text-[10px] text-[#1D7773] dark:text-[#73CEC2]">{activeMatch + 1}/{matches.length}</span>
-                        )}
-                        <button type="button" onClick={() => goMatch(-1)} disabled={!searching} aria-label="Previous match" className="grid h-5 w-5 place-items-center rounded text-stone-400 transition-colors hover:text-stone-700 disabled:opacity-30 dark:hover:text-stone-100">
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M15 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                        </button>
-                        <button type="button" onClick={() => goMatch(1)} disabled={!searching} aria-label="Next match" className="grid h-5 w-5 place-items-center rounded text-stone-400 transition-colors hover:text-stone-700 disabled:opacity-30 dark:hover:text-stone-100">
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                        </button>
-                      </div>
-
-                      <button type="button" onClick={copyTranscript} aria-label="Copy transcript" title="Copy transcript"
-                        className="flex items-center gap-1.5 rounded-xl border border-stone-200 bg-white/80 px-2.5 py-1.5 text-xs font-medium text-stone-600 transition-colors hover:border-[#2BA6A0]/60 hover:text-[#1D7773] dark:border-white/10 dark:bg-stone-800/70 dark:text-stone-300 dark:hover:border-[#5D6FE8]/50 dark:hover:text-[#73CEC2]">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" /></svg>
-                        Copy
-                      </button>
-
-                      <button type="button" onClick={exportSubtitles.bind(null, 'vtt')} title="Export .VTT subtitles"
-                        className="rounded-xl border border-stone-200 bg-white/80 px-2.5 py-1.5 text-xs font-medium text-stone-600 transition-colors hover:border-[#2BA6A0]/60 hover:text-[#1D7773] dark:border-white/10 dark:bg-stone-800/70 dark:text-stone-300 dark:hover:border-[#5D6FE8]/50 dark:hover:text-[#8793F2]">
-                        .VTT
-                      </button>
-                      <button type="button" onClick={exportSubtitles.bind(null, 'srt')} title="Export .SRT subtitles"
-                        className="rounded-xl border border-stone-200 bg-white/80 px-2.5 py-1.5 text-xs font-medium text-stone-600 transition-colors hover:border-rose-300 hover:text-rose-700 dark:border-white/10 dark:bg-stone-800/70 dark:text-stone-300 dark:hover:text-rose-300">
-                        .SRT
-                      </button>
-
-                      <label className="flex cursor-pointer select-none items-center gap-2 text-xs text-gray-500 dark:text-stone-400">
-                        <span className="relative inline-flex h-4 w-7 items-center rounded-full transition-colors" style={{ background: autoScroll ? '#2BA6A0' : '#737373' }}>
-                          <span className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition-transform ${autoScroll ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
-                        </span>
-                        <input type="checkbox" checked={autoScroll} onChange={(e) => setAutoScroll(e.target.checked)} className="sr-only" />
-                        Auto-scroll
-                      </label>
-                    </div>
-                  </div>
-
-                  {searching ? (
-                    <div
-                      ref={transcriptRef}
-                      style={{ maxHeight: 480 }}
-                      onWheel={pauseAutoScroll}
-                      onTouchStart={pauseAutoScroll}
-                      className={`rounded-2xl border divide-y overflow-y-auto ${tw.surface} dark:divide-white/10`}
-                    >
-                      {matches.map((f, i) => {
-                        const active = i === activeMatch
-                        const accent = getSpeakerColor(f.speaker).accent
-                        return (
-                          <div
-                            key={f.idx}
-                            ref={(el) => {
-                              if (el) matchEls.current.set(i, el)
-                              else matchEls.current.delete(i)
-                            }}
-                            role="button"
-                            tabIndex={0}
-                            aria-label={`Jump to ${formatTime(f.seg.start)}`}
-                            onClick={() => handleSeek(f.seg.start)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault()
-                                handleSeek(f.seg.start)
-                              }
-                            }}
-                            className={`seg-row group flex cursor-pointer gap-4 px-4 py-2.5 transition-colors duration-200 ease-out ${active ? 'active transcript-active' : 'hover:bg-[#2BA6A0]/5 dark:hover:bg-stone-800/60'}`}
-                            style={{ ['--seg-accent' as string]: accent } as React.CSSProperties}
-                          >
-                            <span className="seg-bar" />
-                            <span style={{ minWidth: 48 }} className={`mt-0.5 whitespace-nowrap font-mono text-xs ${active ? 'font-semibold text-[#1D7773] dark:text-[#73CEC2]' : 'text-gray-400 dark:text-stone-500'}`}>
-                              {formatTime(f.seg.start)}
-                            </span>
-                            <div className="min-w-0 flex-1">
-                              <span className={`mb-1 inline-block rounded px-1.5 py-0.5 text-[10px] font-medium ${getSpeakerColor(f.speaker).tag}`}>{f.speaker}</span>
-                              <p className={`text-sm ${active ? 'text-[#9A3412] dark:text-[#FFE4D6]' : 'text-gray-800 dark:text-stone-200'}`}>
-                                {highlight(f.seg.text, searchQuery)}
-                              </p>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  ) : (
-                    <div
-                      ref={transcriptRef}
-                      style={{ maxHeight: 480 }}
-                      onWheel={pauseAutoScroll}
-                      onTouchStart={pauseAutoScroll}
-                      className={`rounded-2xl border p-2 space-y-2 overflow-y-auto ${tw.surface}`}
-                    >
-                      {(() => {
-                        let flatIdx = 0
-                        return (
-                          <div ref={staggerScrollRef}>
-                            {groups.map((group, gi) => {
-                              const accent = getSpeakerColor(group.speaker).accent
-                              const isVisible = visibleTranscriptGroups.has(gi)
-                              return (
-                                <motion.div
-                                  key={gi}
-                                  initial={{ opacity: 0, y: 20 }}
-                                  animate={isVisible ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
-                                  transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1], delay: gi * 0.05 }}
-                                  className="relative overflow-hidden rounded-xl border border-white/70 bg-white/60 dark:border-white/10 dark:bg-stone-900/40"
-                                >
-                                  <motion.span
-                                    className="absolute bottom-0 left-0 top-0 w-1 rounded-r-full shadow-[0_0_12px_var(--seg-accent)]"
-                                    style={{ background: accent, transformOrigin: 'top', ['--seg-accent' as string]: accent }}
-                                    initial={{ scaleY: 0 }}
-                                    animate={{ scaleY: 1 }}
-                                    transition={{ ...transitions.content, delay: gi * 0.05 }}
-                                  />
-                                  <div className="flex items-center gap-2 border-b border-stone-200/70 px-4 py-2 bg-white/60 dark:border-white/10 dark:bg-stone-900/50">
-                                    <motion.span
-                                      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold shadow-sm ${getSpeakerColor(group.speaker).tag}`}
-                                      initial={{ opacity: 0, x: -4 }}
-                                      animate={{ opacity: 1, x: 0 }}
-                                      transition={transitions.contentIn}
-                                    >
-                                      <span className="h-2 w-0.5 rounded-full" style={{ background: accent }} />
-                                      {group.speaker}
-                                    </motion.span>
-                                    <span className="text-xs text-gray-400 dark:text-stone-500">{group.segments.length} segs</span>
-                                  </div>
-                                  <div className="p-1.5">
-                                    {group.segments.map((seg) => {
-                                      const idx = flatIdx++
-                                      const active = idx === activeSegmentIdx
-                                      return (
-                                        <motion.div
-                                          key={idx}
-                                          ref={(el) => {
-                                            if (el) segmentEls.current.set(idx, el)
-                                            else segmentEls.current.delete(idx)
-                                          }}
-                                          data-active={active}
-                                          role="button"
-                                          tabIndex={0}
-                                          aria-label={`Play from ${formatTime(seg.start)}`}
-                                          onClick={() => handleSeek(seg.start)}
-                                          onKeyDown={(e) => {
-                                            if (e.key === 'Enter' || e.key === ' ') {
-                                              e.preventDefault()
-                                              handleSeek(seg.start)
-                                            }
-                                          }}
-                                          initial={{ opacity: 0, x: -10 }}
-                                          animate={{ opacity: 1, x: 0 }}
-                                          transition={{ duration: 0.2, delay: gi * 0.05 + (idx % group.segments.length) * 0.02 }}
-                                          className={`seg-row group flex cursor-pointer items-start gap-3 rounded-lg px-3 py-2.5 transition-all duration-200 ease-out ${active ? 'active transcript-active' : 'hover:bg-white/80 dark:hover:bg-stone-800/50'}`}
-                                          style={{ ['--seg-accent' as string]: accent } as React.CSSProperties}
-                                        >
-                                          <span className="seg-bar" />
-                                          <span
-                                            className={`mt-0.5 shrink-0 rounded-md border px-1.5 py-0.5 whitespace-nowrap font-mono text-[11px] backdrop-blur-sm ${active ? 'font-bold border-[#2BA6A0]/40 bg-[#2BA6A0]/10 text-[#1D7773] dark:border-[#5D6FE8]/40 dark:bg-[#5D6FE8]/10 dark:text-[#73CEC2]' : 'border-transparent text-gray-400 dark:text-stone-500'} group-hover:border-[#2BA6A0]/30 group-hover:text-[#155956] dark:group-hover:text-[#73CEC2]`}
-                                          >
-                                            {formatTime(seg.start)}
-                                          </span>
-                                          <p className={`flex-1 text-sm leading-relaxed ${active ? 'text-[#9A3412] dark:text-[#FFE4D6]' : 'text-gray-800 dark:text-stone-200'}`}>{seg.text}</p>
-                                          <span className="mt-0.5 shrink-0 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
-                                            <span
-                                              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold text-white shadow-[0_0_12px_rgb(93_111_232/0.5)]"
-                                              style={{ background: accent }}
-                                            >
-                                              <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86a1 1 0 0 0-1.5.86z" /></svg>
-                                              Play from here
-                                            </span>
-                                          </span>
-                                        </motion.div>
-                                      )
-                                    })}
-                                  </div>
-                                </motion.div>
-                              )
-                            })}
-                          </div>
-                        )
-                      })()}
-                    </div>
-                  )}
-                </section>
+                <TranscriptSection
+                  videoId={id!}
+                  segments={displaySegments}
+                  langLabel={targetLang || originalLang}
+                  onSeek={handleSeek}
+                />
               ) : video.status === 'done' ? (
                 <div className="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-[#2BA6A0]/40 bg-white/65 py-16 text-center text-stone-500 backdrop-blur-xl dark:border-[#5D6FE8]/40 dark:bg-stone-900/50 dark:text-stone-400">
                   No transcript.
@@ -969,17 +614,6 @@ const PIPELINE = [
   { key: 'summarize', label: 'Summarize' },
 ] as const
 
-// Index of the active pipeline step for each backend status.
-const STATUS_STEP: Record<string, number> = {
-  queued: 0,
-  downloading: 0,
-  processing: 1,
-  analyzing: 3,
-  summarizing: 4,
-  done: 5,
-  failed: 1,
-}
-
 type StepState = 'done' | 'active' | 'pending' | 'failed'
 
 function PipelineStepper({
@@ -995,7 +629,7 @@ function PipelineStepper({
 }) {
   const failed = status === 'failed'
   const done = status === 'done'
-  const idx = STATUS_STEP[status] ?? 0
+  const idx = STATUS_PIPELINE_STEP[status] ?? 0
 
   const stateFor = (i: number): StepState => {
     if (done) return 'done'
@@ -1151,7 +785,7 @@ function StatusChip({ status, duration }: { status: string; duration: number }) 
   const processing = isProcessing(status as Video['status'])
   return (
     <span className="flex items-center gap-2 text-xs">
-      <span className={`w-2 h-2 rounded-full ${STATUS_DOT_COLORS[status] || 'bg-gray-300'} ${processing ? 'animate-pulse' : ''}`} />
+      <span className={`w-2 h-2 rounded-full ${STATUS_DOTS[status as Video['status']] || 'bg-gray-300'} ${processing ? 'animate-pulse' : ''}`} />
       <span className="font-semibold capitalize text-stone-700 dark:text-stone-200">{status}</span>
       {duration > 0 && <span className="font-mono text-stone-400 dark:text-stone-500">{formatTime(duration)}</span>}
     </span>
@@ -1244,16 +878,6 @@ function GraphFallback() {
       ))}
     </div>
   )
-}
-
-const STATUS_DOT_COLORS: Record<string, string> = {
-  queued: 'bg-yellow-400',
-  downloading: 'bg-amber-400',
-  processing: 'bg-orange-400',
-  analyzing: 'bg-rose-400',
-  summarizing: 'bg-fuchsia-400',
-  done: 'bg-[#2BA6A0]',
-  failed: 'bg-red-400',
 }
 
 // ─── Generate panel ───────────────────────────────────────────────
@@ -1477,10 +1101,6 @@ function GeneratePanel({ videoId }: { videoId: string }) {
       </section>
     </div>
   )
-}
-
-function Spinner() {
-  return <span className="inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
 }
 
 // Word-by-word streaming for AI chat replies.

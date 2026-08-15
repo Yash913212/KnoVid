@@ -95,6 +95,8 @@ Backend variables live in `backend/.env`:
 | `REDIS_URL` | Redis connection string |
 | `UPLOAD_DIR` | Shared upload/download directory; defaults to `./uploads` |
 | `PROCESSING_SERVICE_URL` | FastAPI base URL; defaults to `http://localhost:8000` |
+| `PROCESSING_AUTH_TOKEN` | Shared secret sent as `X-Processing-Auth`; must match the service's token. Leave empty to skip auth (local dev) |
+| `PROCESSING_TIMEOUT_MS` | Timeout for the transcription pipeline call; defaults to `600000` |
 
 Frontend variables live in `frontend/.env.local`:
 
@@ -110,8 +112,9 @@ and sends its access token to the backend as a Bearer token.
 
 Processing variables are documented in
 [`processing-service/.env.example`](processing-service/.env.example), including
-`WHISPER_MODEL`, `HF_TOKEN`, `LLM_API_URL`, `LLM_API_KEY`, and Ollama fallback
-settings.
+`WHISPER_MODEL`, `HF_TOKEN`, `LLM_API_URL`, `LLM_API_KEY`, Ollama fallback
+settings, and `PROCESSING_AUTH_TOKEN`. When the token is set there, the backend
+must be configured with the same value.
 
 ## API
 
@@ -133,7 +136,7 @@ Supabase access token in `Authorization: Bearer <token>`.
 | `POST` | `/generate/fuse/:videoId` | Connect two graph concepts |
 | `GET` | `/generate/export/:videoId/:format` | Export Markdown or JSON |
 | `POST` | `/translate` | Translate transcript and graph labels |
-| `GET` | `/files/<name>` | Serve uploaded media |
+| `GET` | `/files/<name>` | Serve uploaded media. Requires a Supabase session (Bearer header or `?token=` query param) and verifies the file belongs to the caller |
 | `GET` | `/health` | Backend liveness check |
 
 FastAPI documentation is available at

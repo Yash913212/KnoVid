@@ -1,7 +1,7 @@
 import { Router, Response } from "express";
 import { findVideo, getGenerated, getGraph, getTranscript, upsertGenerated } from "../db/repository.js";
 import type { ContentType } from "../models/GeneratedContent.js";
-import { config } from "../config/index.js";
+import { config, processingHeaders } from "../config/index.js";
 import { AuthRequest, authMiddleware } from "../middleware/auth.js";
 
 const router = Router();
@@ -39,7 +39,7 @@ router.post("/", authMiddleware, async (req: AuthRequest, res: Response) => {
 
     const resp = await fetch(`${config.processingServiceUrl}/generate`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: processingHeaders(),
       body: JSON.stringify({
         videoId,
         segments: transcript.segments,
@@ -100,7 +100,7 @@ router.post("/chat/:videoId", authMiddleware, async (req: AuthRequest, res: Resp
 
     const resp = await fetch(`${config.processingServiceUrl}/chat`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: processingHeaders(),
       body: JSON.stringify({
         videoId: req.params.videoId,
         segments: transcript.segments,
@@ -142,7 +142,7 @@ router.post("/fuse/:videoId", authMiddleware, async (req: AuthRequest, res: Resp
 
     const resp = await fetch(`${config.processingServiceUrl}/fuse`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: processingHeaders(),
       body: JSON.stringify({
         videoId: req.params.videoId,
         segments: transcript.segments,

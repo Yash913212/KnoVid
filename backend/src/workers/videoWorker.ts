@@ -2,7 +2,7 @@ import { Job } from "bullmq";
 import { updateVideo, upsertGenerated, upsertGraph, upsertTranscript } from "../db/repository.js";
 import type { VideoStatus } from "../models/Video.js";
 import { createVideoWorker } from "../config/queue.js";
-import { config } from "../config/index.js";
+import { config, processingHeaders } from "../config/index.js";
 
 async function setStatus(
   videoId: string,
@@ -12,7 +12,7 @@ async function setStatus(
   await updateVideo(videoId, { status, ...extra });
 }
 
-async function processVideo(job: Job) {
+export async function processVideo(job: Job) {
   const { videoId, type, url, filePath, targetLanguage } = job.data;
   console.log(`Processing video ${videoId} (${type})`);
 
@@ -30,9 +30,9 @@ async function processVideo(job: Job) {
 
     const resp = await fetch(`${config.processingServiceUrl}/process`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: processingHeaders(),
       body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(600000),
+      signal: AbortSignal.timeout(config.processingTimeoutMs),
     });
 
     if (!resp.ok) {
@@ -43,8 +43,11 @@ async function processVideo(job: Job) {
     const result = await resp.json();
     await job.updateProgress(50);
 
-    if (result.filePath) {
-      await updateVideo(videoId, { filePath: result.filePath });
+    if (result.filePath || result.title) {
+      const patch: Parameters<typeof updateVideo>[1] = {};
+      if (result.filePath) patch.filePath = result.filePath;
+      if (result.title) patch.originalName = result.title;
+      await updateVideo(videoId, patch);
     }
 
     await upsertTranscript(videoId, result.language, result.segments);
@@ -53,7 +56,7 @@ async function processVideo(job: Job) {
 
     const analyzeResp = await fetch(`${config.processingServiceUrl}/analyze`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: processingHeaders(),
       body: JSON.stringify({ videoId, segments: result.segments }),
       signal: AbortSignal.timeout(300000),
     });
@@ -71,7 +74,7 @@ async function processVideo(job: Job) {
 
     const sumResp = await fetch(`${config.processingServiceUrl}/generate`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: processingHeaders(),
       body: JSON.stringify({ videoId, segments: result.segments, type: "summary" }),
       signal: AbortSignal.timeout(300000),
     });

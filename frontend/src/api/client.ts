@@ -24,4 +24,12 @@ api.interceptors.response.use(
   }
 )
 
+// Media (video files) is served from /api/files, which is auth-gated but
+// consumed by <video> tags that cannot send Authorization headers — so the
+// session token is appended as a query parameter instead.
+export async function mediaUrl(path: string): Promise<string> {
+  const { data } = await supabase.auth.getSession()
+  return data.session ? `${path}?token=${encodeURIComponent(data.session.access_token)}` : path
+}
+
 export default api

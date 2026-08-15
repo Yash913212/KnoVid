@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { errorMessage } from '../utils'
 import AuthShell, { AuthField } from '../components/AuthShell'
 
 export default function Register() {
@@ -19,8 +20,8 @@ export default function Register() {
     try {
       await register(email, password, name)
       navigate('/app')
-    } catch (err: any) {
-      setError(err.message || err.response?.data?.error || 'Registration failed')
+    } catch (err) {
+      setError(errorMessage(err, 'Registration failed'))
     } finally {
       setBusy(false)
     }

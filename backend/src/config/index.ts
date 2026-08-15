@@ -16,4 +16,17 @@ export const config = {
   uploadDir: process.env.UPLOAD_DIR || "./uploads",
   processingServiceUrl:
     process.env.PROCESSING_SERVICE_URL || "http://localhost:8000",
+  // Optional shared secret sent to the processing service as X-Processing-Auth.
+  processingAuthToken: process.env.PROCESSING_AUTH_TOKEN || "",
+  // Timeout (ms) for the /process pipeline call. Long videos transcribe slowly.
+  processingTimeoutMs: parseInt(process.env.PROCESSING_TIMEOUT_MS || "600000", 10),
 };
+
+// Headers shared by every outbound processing-service call.
+export function processingHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  return {
+    "Content-Type": "application/json",
+    ...(config.processingAuthToken ? { "X-Processing-Auth": config.processingAuthToken } : {}),
+    ...extra,
+  };
+}

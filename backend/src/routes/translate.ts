@@ -1,6 +1,6 @@
 import { Router, Response } from "express";
 import { findVideo, getGraph, getTranscript } from "../db/repository.js";
-import { config } from "../config/index.js";
+import { config, processingHeaders } from "../config/index.js";
 import { AuthRequest, authMiddleware } from "../middleware/auth.js";
 
 const router = Router();
@@ -35,7 +35,7 @@ router.post("/", authMiddleware, async (req: AuthRequest, res: Response) => {
 
     const resp = await fetch(`${config.processingServiceUrl}/translate`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: processingHeaders(),
       body: JSON.stringify({
         videoId,
         segments: transcript.segments,

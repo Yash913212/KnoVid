@@ -68,14 +68,28 @@ export async function listVideos(ownerId: string): Promise<IVideo[]> {
   return (data ?? []).map(mapVideo);
 }
 
+// Used by the /api/files guard: the requested file must belong to one of the
+// caller's videos (matched by stored path suffix), otherwise it is 404'd.
+export async function findVideoByFileName(fileName: string, ownerId: string): Promise<IVideo | null> {
+  const { data, error } = await supabase
+    .from("videos")
+    .select("*")
+    .eq("owner_id", ownerId)
+    .like("file_path", `%/${fileName}`)
+    .maybeSingle();
+  fail(error);
+  return data ? mapVideo(data) : null;
+}
+
 export async function updateVideo(
   id: string,
-  patch: Partial<Pick<IVideo, "status" | "filePath" | "duration">> & { errorMessage?: string | null }
+  patch: Partial<Pick<IVideo, "status" | "filePath" | "duration" | "originalName">> & { errorMessage?: string | null }
 ): Promise<IVideo> {
   const mapped: Record<string, unknown> = {};
   if (patch.status !== undefined) mapped.status = patch.status;
   if (patch.filePath !== undefined) mapped.file_path = patch.filePath;
   if (patch.duration !== undefined) mapped.duration = patch.duration;
+  if (patch.originalName !== undefined) mapped.original_name = patch.originalName;
   if (patch.errorMessage !== undefined) mapped.error_message = patch.errorMessage;
   const { data, error } = await supabase.from("videos").update(mapped).eq("id", id).select("*").single();
   fail(error);

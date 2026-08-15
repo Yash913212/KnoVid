@@ -33,16 +33,6 @@ export function isProcessing(status: VideoStatus): boolean {
   return ['queued', 'downloading', 'processing', 'analyzing', 'summarizing'].includes(status)
 }
 
-export const STATUS_COLORS: Record<VideoStatus, string> = {
-  queued: 'bg-yellow-100 text-yellow-800',
-  downloading: 'bg-amber-100 text-amber-800',
-  processing: 'bg-orange-100 text-orange-800',
-  analyzing: 'bg-rose-100 text-rose-800',
-  summarizing: 'bg-violet-100 text-violet-800',
-  done: 'bg-green-100 text-green-800',
-  failed: 'bg-red-100 text-red-800',
-}
-
 export const STATUS_LABELS: Record<VideoStatus, string> = {
   queued: 'Queued',
   downloading: 'Downloading',
@@ -51,6 +41,38 @@ export const STATUS_LABELS: Record<VideoStatus, string> = {
   summarizing: 'Synthesizing',
   done: 'Done',
   failed: 'Failed',
+}
+
+export const STATUS_DOTS: Record<VideoStatus, string> = {
+  queued: 'bg-yellow-400',
+  downloading: 'bg-amber-400',
+  processing: 'bg-orange-400',
+  analyzing: 'bg-rose-400',
+  summarizing: 'bg-fuchsia-400',
+  done: 'bg-[#2BA6A0]',
+  failed: 'bg-red-400',
+}
+
+// Progress fill % per processing step, so the bar visibly "fills up".
+export const STATUS_PROGRESS: Record<VideoStatus, number> = {
+  queued: 10,
+  downloading: 30,
+  processing: 62,
+  analyzing: 88,
+  summarizing: 94,
+  done: 100,
+  failed: 0,
+}
+
+// Index of the active pipeline step for each backend status.
+export const STATUS_PIPELINE_STEP: Record<VideoStatus, number> = {
+  queued: 0,
+  downloading: 0,
+  processing: 1,
+  analyzing: 3,
+  summarizing: 4,
+  done: 5,
+  failed: 1,
 }
 
 export async function uploadVideo(

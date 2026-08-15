@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
-import { getVideos, STATUS_COLORS, STATUS_LABELS, type Video } from '../api/videos'
+import { getVideos, STATUS_DOTS, STATUS_LABELS, type Video } from '../api/videos'
 import { formatTime } from '../utils'
 import { transitions, staggerContainer, staggerItem } from '../lib/motion'
 
@@ -19,6 +19,7 @@ export default function CommandPalette() {
   const [active, setActive] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  const openRef = useRef(false)
   const navigate = useNavigate()
 
   const load = useCallback(async () => {
@@ -33,25 +34,27 @@ export default function CommandPalette() {
     }
   }, [videos])
 
+  const openWithDefaults = useCallback(() => {
+    setQuery('')
+    setOpen(true)
+    void load()
+    setTimeout(() => inputRef.current?.focus(), 20)
+  }, [load])
+
+  useEffect(() => {
+    openRef.current = open
+  }, [open])
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault()
-        setOpen((o) => {
-          if (!o) {
-            setQuery('')
-            void load()
-            setTimeout(() => inputRef.current?.focus(), 20)
-          }
-          return !o
-        })
+        if (!openRef.current) openWithDefaults()
+        else setOpen(false)
       }
     }
     const onOpen = () => {
-      setQuery('')
-      setOpen(true)
-      void load()
-      setTimeout(() => inputRef.current?.focus(), 20)
+      openWithDefaults()
     }
     window.addEventListener('keydown', onKey)
     window.addEventListener(OPEN_PALETTE_EVENT, onOpen)
@@ -59,7 +62,7 @@ export default function CommandPalette() {
       window.removeEventListener('keydown', onKey)
       window.removeEventListener(OPEN_PALETTE_EVENT, onOpen)
     }
-  }, [load])
+  }, [openWithDefaults])
 
   const close = () => setOpen(false)
 
@@ -88,7 +91,7 @@ export default function CommandPalette() {
       if (e.key === 'Escape') close()
       else if (e.key === 'ArrowDown') {
         e.preventDefault()
-        setActive((a) => Math.min(a + 1, results.length - 1))
+        setActive((a) => (results.length === 0 ? a : Math.min(a + 1, results.length - 1)))
       } else if (e.key === 'ArrowUp') {
         e.preventDefault()
         setActive((a) => Math.max(a - 1, 0))
@@ -108,6 +111,9 @@ export default function CommandPalette() {
     <AnimatePresence>
       {open && (
         <motion.div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Command palette"
           className="fixed inset-0 z-50 flex items-start justify-center bg-stone-950/45 px-4 pt-[12vh] backdrop-blur-sm"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -133,6 +139,7 @@ export default function CommandPalette() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search your video library…"
+                aria-label="Search your video library"
                 className="flex-1 bg-transparent text-sm text-stone-800 outline-none placeholder:text-stone-400 dark:text-stone-100 dark:placeholder:text-stone-500"
               />
               <kbd className="rounded-md border border-stone-200 bg-stone-50 px-1.5 py-0.5 font-mono text-[10px] text-stone-400 dark:border-white/10 dark:bg-stone-800 dark:text-stone-500">esc</kbd>
@@ -189,7 +196,7 @@ export default function CommandPalette() {
                           initial={{ scale: 0 }}
                           animate={{ scale: 1 }}
                           transition={{ type: 'spring', stiffness: 500, damping: 25, delay: i * 0.02 }}
-                          className={`h-2 w-2 shrink-0 rounded-full ${STATUS_COLORS[v.status].split(' ')[0]}`}
+                          className={`h-2 w-2 shrink-0 rounded-full ${STATUS_DOTS[v.status]}`}
                         />
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-sm font-medium text-stone-800 dark:text-stone-100">{v.originalName}</span>

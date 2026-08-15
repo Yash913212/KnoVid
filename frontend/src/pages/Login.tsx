@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { errorMessage } from '../utils'
 import AuthShell, { AuthField } from '../components/AuthShell'
 
 export default function Login() {
@@ -18,8 +19,8 @@ export default function Login() {
     try {
       await login(email, password)
       navigate('/app')
-    } catch (err: any) {
-      setError(err.message || 'Invalid email or password')
+    } catch (err) {
+      setError(errorMessage(err, 'Invalid email or password'))
     } finally {
       setBusy(false)
     }

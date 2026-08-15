@@ -1,6 +1,7 @@
 import { useRef, forwardRef, useImperativeHandle, useEffect, useState, useCallback } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { isYouTubeUrl, parseYouTubeUrl, formatTime } from '../utils'
+import { mediaUrl } from '../api/client'
 import { DURATION, transitions } from '../lib/motion'
 
 export interface VideoPlayerHandle {
@@ -10,6 +11,7 @@ export interface VideoPlayerHandle {
 interface Props {
   url?: string
   filePath?: string
+  title?: string
   onTimeUpdate?: (seconds: number) => void
 }
 
@@ -17,6 +19,7 @@ const YT_POLL_INTERVAL = 300
 const SEEK_STEP = 5
 const IDLE_MS = 3000
 const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2]
+const YT_ORIGIN = 'https://www.youtube-nocookie.com'
 
 const Icons = {
   play: (
@@ -55,7 +58,7 @@ const Icons = {
   ),
 }
 
-const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(({ url, filePath, onTimeUpdate }, ref) => {
+const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(({ url, filePath, title, onTimeUpdate }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
@@ -74,7 +77,25 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(({ url, filePath, onTim
   const [ytReady, setYtReady] = useState(false)
 
   const isYT = !!url && isYouTubeUrl(url)
-  const src = filePath ? `/api/files/${encodeURIComponent(filePath.split('/').pop() || '')}` : url
+  const baseFileUrl = filePath ? `/api/files/${encodeURIComponent(filePath.split('/').pop() || '')}` : null
+  // /api/files is auth-gated; <video> cannot send Authorization headers, so the
+  // session token is appended as a query param. Start with no src (null) to
+  // avoid firing an untokenized request that would 401 on first paint.
+  const [fileSrc, setFileSrc] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!baseFileUrl) {
+      setFileSrc(null)
+      return
+    }
+    let cancelled = false
+    mediaUrl(baseFileUrl).then((withToken) => {
+      if (!cancelled) setFileSrc(withToken)
+    })
+    return () => { cancelled = true }
+  }, [baseFileUrl])
+
+  const src = isYT ? undefined : fileSrc || undefined
 
   // Expose seekTo to the transcript / graph
   useImperativeHandle(ref, () => ({
@@ -86,7 +107,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(({ url, filePath, onTim
       } else if (ytReady && iframeRef.current?.contentWindow) {
         iframeRef.current.contentWindow.postMessage(
           JSON.stringify({ event: 'command', func: 'seekTo', args: [seconds, true] }),
-          '*'
+          YT_ORIGIN
         )
       }
     },
@@ -123,7 +144,15 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(({ url, filePath, onTim
       const v = videoRef.current
       if (!v) return
       const target = e.target as HTMLElement | null
-      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(target?.tagName || '')) return
+      if (['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON', 'A'].includes(target?.tagName || '')) return
+      if (target?.isContentEditable) return
+      // Only handle keys while the player is actually on screen and no
+      // modal/dialog is open on top of it.
+      const el = containerRef.current
+      if (!el) return
+      const rect = el.getBoundingClientRect()
+      if (rect.bottom <= 0 || rect.top >= window.innerHeight || rect.width === 0) return
+      if (document.querySelector('[role="dialog"], [data-modal]')) return
       const key = e.key.toLowerCase()
 
       switch (key) {
@@ -201,7 +230,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(({ url, filePath, onTim
     const interval = setInterval(() => {
       iframeRef.current?.contentWindow?.postMessage(
         JSON.stringify({ event: 'command', func: 'getCurrentTime', args: [] }),
-        '*'
+        YT_ORIGIN
       )
     }, YT_POLL_INTERVAL)
     return () => clearInterval(interval)
@@ -210,7 +239,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(({ url, filePath, onTim
   useEffect(() => {
     if (!isYT) return
     const handler = (e: MessageEvent) => {
-      if (e.origin !== 'https://www.youtube-nocookie.com' && e.origin !== 'https://www.youtube.com') return
+      if (e.origin !== YT_ORIGIN && e.origin !== 'https://www.youtube.com') return
       let data = e.data as { event?: string; info?: { currentTime?: number } } | null
       if (typeof e.data === 'string') {
         try { data = JSON.parse(e.data) as typeof data } catch { return }
@@ -267,6 +296,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(({ url, filePath, onTim
       <video
         ref={videoRef}
         src={src}
+        aria-label={title || 'Video player'}
         className="h-full w-full object-contain"
         playsInline
         preload="metadata"
@@ -325,7 +355,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(({ url, filePath, onTim
       >
         {/* Scrub bar */}
         <div
-          className="relative h-6 -mb-1 flex cursor-pointer items-center pt-3"
+          role="slider"
+          aria-label="Seek"
+          aria-valuemin={0}
+          aria-valuemax={duration || 0}
+          aria-valuenow={currentTime}
+          aria-valuetext={formatTime(currentTime)}
+          tabIndex={0}
+          className="relative h-6 -mb-1 flex cursor-pointer items-center pt-3 focus:outline-none"
           onMouseMove={(e) => {
             const rect = e.currentTarget.getBoundingClientRect()
             const frac = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width))
@@ -339,6 +376,34 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(({ url, filePath, onTim
             if (v) {
               v.currentTime = frac * v.duration
               v.play()
+            }
+          }}
+          onKeyDown={(e) => {
+            const v = videoRef.current
+            if (!v) return
+            const seekTo = (seconds: number) => {
+              v.currentTime = Math.max(0, Math.min(seconds, v.duration || 0))
+              v.play()
+            }
+            switch (e.key) {
+              case 'ArrowRight':
+              case 'ArrowUp':
+                e.preventDefault()
+                seekTo(v.currentTime + SEEK_STEP)
+                break
+              case 'ArrowLeft':
+              case 'ArrowDown':
+                e.preventDefault()
+                seekTo(v.currentTime - SEEK_STEP)
+                break
+              case 'Home':
+                e.preventDefault()
+                seekTo(0)
+                break
+              case 'End':
+                e.preventDefault()
+                seekTo(v.duration || 0)
+                break
             }
           }}
         >

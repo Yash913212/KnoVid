@@ -8,11 +8,14 @@ export function useFetch<T>(fn: () => Promise<T>, deps: DependencyList) {
   useEffect(() => {
     let cancelled = false
     setLoading(true)
+    setError(null)
     fn()
       .then((res) => {
         if (!cancelled) setData(res)
       })
-      .catch(setError)
+      .catch((err) => {
+        if (!cancelled) setError(err)
+      })
       .finally(() => {
         if (!cancelled) setLoading(false)
       })

@@ -1,15 +1,11 @@
 import { useState, useEffect, useRef, useCallback, Fragment, lazy, Suspense } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
-import {
-  uploadVideo, submitUrl, getVideos, retryVideo,
-  STATUS_LABELS, getStatusStep, isProcessing,
-  type Video, type VideoStatus,
-} from '../api/videos'
+import { uploadVideo, submitUrl, getVideos, retryVideo, STATUS_LABELS, STATUS_PROGRESS, getStatusStep, isProcessing, type Video, type VideoStatus } from '../api/videos'
 import { fadeUpLift, scaleFade, tw, staggerContainer, staggerItem, transitions } from '../lib/motion'
 import { useToast } from '../components/Toast'
 import Magnetic from '../components/Magnetic'
-import { formatTime } from '../utils'
+import { formatTime, errorMessage } from '../utils'
 import { getResume } from '../lib/resume'
 import { FileText, Sparkles } from 'lucide-react'
 import { Button } from '../components/ui/Button'
@@ -91,6 +87,7 @@ export default function Dashboard() {
   const [outputLang, setOutputLang] = useState('en')
   const [recentUpload, setRecentUpload] = useState<string | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const pollingInFlight = useRef(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const urlInputRef = useRef<HTMLInputElement>(null)
   const dragDepth = useRef(0)
@@ -105,39 +102,39 @@ export default function Dashboard() {
     }
   }, [])
 
-  useEffect(() => {
-    loadVideos().finally(() => setLoading(false))
-    const tick = async () => {
+  const stopPolling = useCallback(() => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current)
+      pollRef.current = null
+    }
+  }, [])
+
+  // Single polling loop shared by the mount effect and upload/retry handlers.
+  // Guards against overlapping requests when a fetch takes longer than the
+  // interval, and stops itself once nothing is processing.
+  const tick = useCallback(async () => {
+    if (pollingInFlight.current) return
+    pollingInFlight.current = true
+    try {
       const data = await loadVideos()
-      if (!data || !data.some((v) => isProcessing(v.status))) {
-        if (pollRef.current) {
-          clearInterval(pollRef.current)
-          pollRef.current = null
-        }
-      }
+      if (!data || !data.some((v) => isProcessing(v.status))) stopPolling()
+    } finally {
+      pollingInFlight.current = false
     }
+  }, [loadVideos, stopPolling])
 
-    pollRef.current = setInterval(tick, POLL_INTERVAL)
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current)
+  const startPollIfNeeded = useCallback((data: Video[] | null) => {
+    if (data?.some((v) => isProcessing(v.status))) {
+      if (!pollRef.current) pollRef.current = setInterval(tick, POLL_INTERVAL)
     }
-  }, [loadVideos])
+  }, [tick])
 
-  const startPollIfNeeded = (data: Video[]) => {
-    if (data.some((v) => isProcessing(v.status))) {
-      if (!pollRef.current) {
-        pollRef.current = setInterval(async () => {
-          const d = await loadVideos()
-          if (!d || !d.some((v) => isProcessing(v.status))) {
-            if (pollRef.current) {
-              clearInterval(pollRef.current)
-              pollRef.current = null
-            }
-          }
-        }, POLL_INTERVAL)
-      }
-    }
-  }
+  useEffect(() => {
+    loadVideos()
+      .finally(() => setLoading(false))
+      .then(startPollIfNeeded)
+    return stopPolling
+  }, [loadVideos, startPollIfNeeded, stopPolling])
 
   // Revert the portal to idle once the just-imported video finishes (or fails).
   useEffect(() => {
@@ -154,16 +151,15 @@ export default function Dashboard() {
     setUploadProgress(0)
     setError('')
     try {
-      await uploadVideo(file, setUploadProgress, outputLang)
+      const { id } = await uploadVideo(file, setUploadProgress, outputLang)
       toast(`Upload started: ${file.name}`, 'success')
       const data = await loadVideos()
       if (data) {
-        const mine = data.find((v) => v.originalName === file.name)
-        if (mine) setRecentUpload(mine._id)
+        setRecentUpload(id)
         startPollIfNeeded(data)
       }
-    } catch (err: any) {
-      setError(err?.response?.data?.error || 'Upload failed. Check file size and format.')
+    } catch (err) {
+      setError(errorMessage(err, 'Upload failed. Check file size and format.'))
       toast('Upload failed', 'error')
     } finally {
       setUploading(false)
@@ -181,16 +177,16 @@ export default function Dashboard() {
     setError('')
     setTransmuting(true)
     try {
-      await submitUrl(url.trim(), outputLang)
+      const { id } = await submitUrl(url.trim(), outputLang)
       toast('URL added — transmuting started', 'success')
       setUrl('')
       const data = await loadVideos()
       if (data) {
-        if (data.length > 0) setRecentUpload(data[0]._id)
+        setRecentUpload(id)
         startPollIfNeeded(data)
       }
-    } catch (err: any) {
-      setError(err?.response?.data?.error || 'Failed to submit URL')
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to submit URL'))
       toast('Failed to submit URL', 'error')
     } finally {
       setTransmuting(false)
@@ -1026,17 +1022,6 @@ function thumbGrad(id: string): string {
   return THUMB_GRADS[h % THUMB_GRADS.length]
 }
 
-// Progress fill % per processing step, so the bar visibly "fills up".
-const PROGRESS_BY_STATUS: Record<VideoStatus, number> = {
-  queued: 10,
-  downloading: 30,
-  processing: 62,
-  analyzing: 88,
-  summarizing: 94,
-  done: 100,
-  failed: 0,
-}
-
 // Hairline-divided stat cells in the workspace header strip.
 function StatCell({ label, value, accent }: { label: string; value: string; accent: string }) {
   return (
@@ -1049,7 +1034,7 @@ function StatCell({ label, value, accent }: { label: string; value: string; acce
 
 // Compact row inside the "Now processing" rail — calm, no giant cards.
 function ProcessingRow({ video, onClick }: { video: Video; onClick: () => void }) {
-  const pct = PROGRESS_BY_STATUS[video.status]
+  const pct = STATUS_PROGRESS[video.status]
   return (
     <motion.div
       variants={staggerItem(scaleFade)}
@@ -1120,7 +1105,7 @@ function KnowledgeCard({ video, onClick, onRetry }: { video: Video; onClick: () 
     prevStatus.current = video.status
   }, [video.status])
 
-  const barWidth = PROGRESS_BY_STATUS[video.status]
+  const barWidth = STATUS_PROGRESS[video.status]
 
   // Cursor-tracking spotlight — the classic premium card micro-interaction.
   const cardRef = useRef<HTMLDivElement>(null)
