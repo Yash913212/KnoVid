@@ -112,7 +112,8 @@ export function startVideoWorker() {
   });
 
   worker.on("error", (err) => {
-    console.error("Video worker error:", err?.message);
+    const detail = err?.message || err?.name || JSON.stringify(err) || "Unknown worker error";
+    console.error("Video worker error:", detail);
   });
 
   console.log("Video worker started");

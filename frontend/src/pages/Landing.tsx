@@ -110,7 +110,10 @@ export default function Landing() {
           <section className="hero-section">
             <div className="hero-copy">
               <Reveal delay={0.05} y={18} blur={4}>
-                <div className="eyebrow-line"><span className="live-dot" /> Video intelligence for curious people</div>
+                <div className="hero-kicker-row">
+                  <div className="eyebrow-line"><span className="live-dot" /> Video intelligence for curious people</div>
+                  <span className="hero-timecode">REC&nbsp;&nbsp;00:42:18:12</span>
+                </div>
               </Reveal>
               <Headline as="h1" stagger={0.16}>
                 <Line>Watch less.</Line>
@@ -131,6 +134,11 @@ export default function Landing() {
                   <p><strong>Built for deep work</strong><br />Lectures · interviews · research · podcasts</p>
                 </div>
               </Reveal>
+              <div className="hero-scene-rule" aria-hidden="true">
+                <span>KNOVID / MEMORY REEL</span>
+                <i />
+                <span>SCENE 01</span>
+              </div>
             </div>
             <motion.div
               className="hero-visual"
@@ -141,6 +149,7 @@ export default function Landing() {
               transition={{ duration: 1, ease: CINEMATIC, delay: 0.5 }}
             >
               <div className="hero-visual-glow" />
+              <div className="hero-projection-frame" aria-hidden="true"><span /><span /><span /><span /></div>
               <motion.div
                 className="hero-float"
                 animate={{ y: [0, -12, 0] }}
@@ -170,6 +179,7 @@ export default function Landing() {
                 </div>
                 <div className="floating-stat stat-one"><span>01</span><strong>Searchable</strong><small>every sentence</small></div>
                 <div className="floating-stat stat-two"><span>02</span><strong>Grounded</strong><small>every answer</small></div>
+                <div className="hero-reel-caption"><span>PLAYBACK / ACTIVE</span><i /><span>42 MINUTES OF SIGNAL</span></div>
               </motion.div>
             </motion.div>
           </section>
