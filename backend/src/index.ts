@@ -16,8 +16,25 @@ import { startVideoWorker } from "./workers/videoWorker.js";
 
 const app = express();
 
+// ── Verbose request logger: every API call hits the console ──
+app.use((req, _res, next) => {
+  const start = Date.now();
+  const url = req.originalUrl || req.url;
+  console.log(`[${new Date().toISOString()}] → ${req.method} ${url} ${req.ip || ''} ${req.headers['content-length'] ? `(${req.headers['content-length']}b)` : ''}`);
+  const origEnd = _res.end.bind(_res) as typeof _res.end;
+  // @ts-ignore patch end to log duration/status
+  _res.end = ((...args: unknown[]) => {
+    const ms = Date.now() - start;
+    const status = (_res as any).statusCode;
+    const level = status >= 500 ? '✗' : status >= 400 ? '⚠' : '✓';
+    console.log(`[${new Date().toISOString()}] ${level} ${req.method} ${url} → ${status} (${ms}ms)`);
+    return (origEnd as unknown as (...a: unknown[]) => unknown)(...args);
+  }) as typeof _res.end;
+  next();
+});
+
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
 
 app.use("/api/auth", authRoutes);
 app.use("/api/videos", videoRoutes);
@@ -63,7 +80,14 @@ app.use(
 );
 
 app.get("/api/health", (_req, res) => {
-  res.json({ ok: true });
+  res.json({ ok: true, time: new Date().toISOString(), redis: config.redisUrl, processing: config.processingServiceUrl });
+});
+// Global error formatter — prints full stack to console
+app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  const e = err as { message?: string; stack?: string; status?: number };
+  console.error(`[${new Date().toISOString()}] ✗ UNHANDLED API ERROR:`, e?.message || e);
+  if (e?.stack) console.error(e.stack);
+  res.status((e?.status as number) || 500).json({ error: e?.message || 'Internal error', stack: e?.stack?.slice(0, 2000) });
 });
 
 async function start() {

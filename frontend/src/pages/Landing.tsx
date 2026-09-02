@@ -1,6 +1,6 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
-import { motion } from 'motion/react'
+import { useState, useEffect, useRef } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { motion, useScroll, useMotionValueEvent, useTransform } from 'motion/react'
 import {
   ArrowDownRight,
   ArrowRight,
@@ -8,15 +8,20 @@ import {
   BrainCircuit,
   Check,
   CirclePlay,
+  Clock3,
+  Eye,
+  Link2,
   Menu,
   Network,
   Sparkles,
+  Upload,
   X,
 } from 'lucide-react'
 import SeoHead from '../components/SeoHead'
 import LogoMark, { BrandTag } from '../components/brand/LogoMark'
 import FeatureCard from '../components/marketing/FeatureCard'
 import { Button } from '../components/ui/Button'
+import { PearlButton } from '../components/ui/pearl-button'
 import ThemeToggle from '../components/ThemeToggle'
 import { Headline, Line, Reveal, RevealGroup, RevealItem } from '../components/Reveal'
 
@@ -65,6 +70,28 @@ const CINEMATIC: [number, number, number, number] = [0.22, 1, 0.36, 1]
 
 export default function Landing() {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [scrolled, setScrolled] = useState(false)
+  const navigate = useNavigate()
+  const { scrollY } = useScroll()
+  const workflowRef = useRef<HTMLDivElement>(null)
+  const { scrollYProgress: workflowProgress } = useScroll({
+    target: workflowRef as unknown as React.RefObject<Element>,
+    offset: ['start 0.85', 'end 0.45'],
+  } as unknown as Parameters<typeof useScroll>[0])
+  const workflowFillX = useTransform(workflowProgress, [0, 1], [0, 1])
+
+  useMotionValueEvent(scrollY, 'change', (latest) => {
+    const isScrolled = latest > 24
+    setScrolled((prev) => (prev !== isScrolled ? isScrolled : prev))
+  })
+
+  // Fallback for initial render / SSR
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 24)
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
 
   return (
     <>
@@ -73,7 +100,11 @@ export default function Landing() {
         description="Turn any lecture, interview, or research video into a searchable transcript, living knowledge graph, and grounded study workspace."
       />
       <div className="marketing-page">
-        <header className="marketing-nav">
+        <motion.header
+          className={`marketing-nav ${scrolled ? 'marketing-nav-scrolled' : ''}`}
+          initial={false}
+          animate={{ y: 0, opacity: 1 }}
+        >
           <div className="marketing-nav-inner">
             <Link to="/" aria-label="KnoVid home"><LogoMark /></Link>
             <div className="marketing-links">
@@ -104,7 +135,7 @@ export default function Landing() {
               <Link to="/register" onClick={() => setMenuOpen(false)}><Button className="w-full" radius="xl">Start for free</Button></Link>
             </div>
           )}
-        </header>
+        </motion.header>
 
         <main>
           <section className="hero-section">
@@ -124,7 +155,15 @@ export default function Landing() {
               </Reveal>
               <Reveal delay={0.6}>
                 <div className="hero-actions">
-                  <Link to="/register"><Button size="lg" radius="xl" icon={<Sparkles size={16} />}>Build your first universe</Button></Link>
+                  <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="hero-pearl-wrap">
+                    <PearlButton
+                      label="Build your first universe"
+                      onClick={() => navigate('/register')}
+                      aria-label="Build your first universe"
+                      className="hero-pearl"
+                      style={{ transform: 'scale(0.62)', transformOrigin: 'left center' } as React.CSSProperties}
+                    />
+                  </motion.div>
                   <a className="text-action" href="#capabilities"><CirclePlay size={16} /> See how it works</a>
                 </div>
               </Reveal>
@@ -200,7 +239,7 @@ export default function Landing() {
             </RevealGroup>
           </section>
 
-          <section id="workflow" className="workflow-section content-section">
+          <section ref={workflowRef as unknown as React.RefObject<HTMLDivElement>} id="workflow" className="workflow-section workflow-redesign content-section">
             <div className="workflow-header">
               <div>
                 <Reveal y={16} blur={4}><BrandTag>The KnoVid loop</BrandTag></Reveal>
@@ -209,13 +248,63 @@ export default function Landing() {
                   <Line><em>to insight.</em></Line>
                 </Headline>
               </div>
-              <Reveal delay={0.18} y={18} blur={4}><p>Your video moves through a quiet, deliberate pipeline that leaves the source visible at every step.</p></Reveal>
+              <Reveal delay={0.18} y={18} blur={4}><p>Your video moves through a quiet, deliberate pipeline that leaves the source visible at every step — not a black box.</p></Reveal>
             </div>
-            <RevealGroup className="workflow-rail" stagger={0.15} amount={0.25}>
-              {[['01', 'Ingest', 'Upload a file or paste a link.'], ['02', 'Understand', 'Transcribe, diarize, and find signal.'], ['03', 'Connect', 'Map the ideas that travel together.'], ['04', 'Recall', 'Ask, study, and return to the moment.']].map(([number, title, desc], i) => (
-                <RevealItem className="workflow-step" key={number}><span className="workflow-number">{number}</span><div className={`workflow-symbol workflow-symbol-${i}`}><span /></div><h3>{title}</h3><p>{desc}</p>{i < 3 && <ArrowRight className="workflow-arrow" size={16} />}</RevealItem>
-              ))}
-            </RevealGroup>
+
+            {/* subtle stage glow */}
+            <div className="workflow-stage-glow" aria-hidden="true" />
+
+            <div className="workflow-track-wrap">
+              {/* horizontal glass track line behind steps — scroll-linked */}
+              <div className="workflow-track-line" aria-hidden="true">
+                <motion.span className="workflow-track-fill" style={{ scaleX: workflowFillX, transformOrigin: 'left' }} />
+                <span className="workflow-track-glow" />
+              </div>
+
+              <RevealGroup className="workflow-rail" stagger={0.12} amount={0.22}>
+                {[
+                  { number:'01', title:'Ingest', desc:'Drop a file or paste a link. yt-dlp + ffmpeg pull clean audio, no quality lost.', icon:<Upload size={18} />, meta:'yt-dlp • ffmpeg', time:'~5s', accent:'lime' },
+                  { number:'02', title:'Understand', desc:'Whisper transcribes, pyannote separates speakers, spaCy finds the signal.', icon:<Eye size={18} />, meta:'Whisper • pyannote', time:'~40s', accent:'orchid' },
+                  { number:'03', title:'Connect', desc:'TF-IDF + graph links ideas that travel together across the timeline.', icon:<Link2 size={18} />, meta:'spaCy • graph', time:'~3s', accent:'coral' },
+                  { number:'04', title:'Recall', desc:'Ask, quiz & export — every answer is grounded in source moments.', icon:<Sparkles size={18} />, meta:'LLM • grounded', time:'instant', accent:'violet' },
+                ].map((s, i) => (
+                  <RevealItem key={s.number} className={`workflow-step workflow-step-${s.accent} group`}>
+                    <div className="step-top">
+                      <span className="step-badge">{s.number}</span>
+                      <span className="step-time"><Clock3 size={11} />{s.time}</span>
+                    </div>
+
+                    <div className="workflow-icon-wrap">
+                      <span className="workflow-icon-ring" aria-hidden="true" />
+                      <span className="workflow-icon">{s.icon}</span>
+                      <span className="workflow-icon-glow" aria-hidden="true" />
+                    </div>
+
+                    <h3>{s.title}</h3>
+                    <p>{s.desc}</p>
+
+                    <div className="step-meta">
+                      <span className="step-tech">{s.meta}</span>
+                      <span className={`step-dot step-dot-${s.accent}`} />
+                    </div>
+
+                    {i < 3 && (
+                      <span className="workflow-connector" aria-hidden="true">
+                        <ArrowRight size={14} />
+                      </span>
+                    )}
+                  </RevealItem>
+                ))}
+              </RevealGroup>
+            </div>
+
+            <Reveal delay={0.35} y={12} blur={4}>
+              <div className="workflow-foot">
+                <span className="workflow-foot-line" />
+                <p><strong>Source stays attached.</strong> Every step keeps timestamps & speakers you can verify — no hallucinations.</p>
+                <Link to="/register" className="workflow-foot-cta">Try the loop <ArrowRight size={14} /></Link>
+              </div>
+            </Reveal>
           </section>
 
           <section id="for-thinkers" className="thinkers-section content-section">
@@ -247,11 +336,20 @@ export default function Landing() {
               <Line><em>compound.</em></Line>
             </Headline>
             <Reveal delay={0.2} y={18} blur={4}><p>Start with one video. Leave with a universe.</p></Reveal>
-            <Reveal delay={0.3} y={18} blur={4}><Link to="/register"><Button size="lg" radius="xl">Start building <ArrowRight size={16} /></Button></Link></Reveal>
+            <Reveal delay={0.3} y={18} blur={4}>
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} style={{ display: 'inline-block' }}>
+                <PearlButton
+                  label="Start building"
+                  onClick={() => navigate('/register')}
+                  aria-label="Start building"
+                  style={{ transform: 'scale(0.62)', transformOrigin: 'center' } as React.CSSProperties}
+                />
+              </motion.div>
+            </Reveal>
           </section>
         </main>
 
-        <footer className="marketing-footer"><Link to="/"><LogoMark /></Link><span>Video to knowledge, with a memory.</span><div><Link to="/login">Sign in</Link><Link to="/register">Create workspace</Link></div></footer>
+        <Reveal y={12} blur={3}><footer className="marketing-footer"><Link to="/"><LogoMark /></Link><span>Video to knowledge, with a memory.</span><div><Link to="/login">Sign in</Link><Link to="/register">Create workspace</Link></div></footer></Reveal>
       </div>
     </>
   )

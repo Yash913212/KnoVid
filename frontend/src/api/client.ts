@@ -13,10 +13,28 @@ api.interceptors.request.use(async (config) => {
   return config
 })
 
-api.interceptors.response.use(
-  (res) => res,
+api.interceptors.request.use(
+  (cfg) => {
+    console.log(`[API] → ${cfg.method?.toUpperCase()} ${cfg.baseURL}${cfg.url}`)
+    return cfg
+  },
   (err) => {
-    if (err.response?.status === 401) {
+    console.error('[API] request error:', err?.message, err)
+    return Promise.reject(err)
+  }
+)
+
+api.interceptors.response.use(
+  (res) => {
+    console.log(`[API] ← ${res.status} ${res.config.method?.toUpperCase()} ${res.config.url} (${JSON.stringify(res.data).length}b)`)
+    return res
+  },
+  (err) => {
+    const status = err.response?.status
+    const data = err.response?.data
+    console.error(`[API] ✗ ${status ?? 'ERR'} ${err.config?.method?.toUpperCase()} ${err.config?.url}:`, data || err.message)
+    if (err.stack) console.error(err.stack)
+    if (status === 401) {
       void supabase.auth.signOut()
       window.location.href = '/login'
     }

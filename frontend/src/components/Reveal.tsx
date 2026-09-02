@@ -1,6 +1,7 @@
 import { motion } from 'motion/react'
 import type { Variants } from 'motion/react'
 import type { ReactNode } from 'react'
+import { usePrefersReducedMotion } from '../lib/motion'
 
 // Claude-style cinematic easing: fast arrival, long settle.
 const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1]
@@ -22,6 +23,8 @@ export function Reveal({
   y?: number
   blur?: number
 }) {
+  const reduced = usePrefersReducedMotion()
+  if (reduced) return <div className={className}>{children}</div>
   return (
     <motion.div
       className={className}
@@ -50,6 +53,8 @@ export function RevealGroup({
   delayChildren?: number
   amount?: number
 }) {
+  const reduced = usePrefersReducedMotion()
+  if (reduced) return <div className={className}>{children}</div>
   return (
     <motion.div
       className={className}
@@ -95,6 +100,8 @@ export function RevealItem({
   className?: string
   from?: 'up' | 'left' | 'right' | 'none'
 }) {
+  const reduced = usePrefersReducedMotion()
+  if (reduced) return <div className={className}>{children}</div>
   return (
     <motion.div className={className} variants={fromMap[from]}>
       {children}
@@ -123,6 +130,11 @@ export function Headline({
   stagger?: number
   amount?: number
 }) {
+  const reduced = usePrefersReducedMotion()
+  if (reduced) {
+    const PlainTag = as
+    return <PlainTag className={className}>{children}</PlainTag>
+  }
   const Tag = as === 'h1' ? motion.h1 : as === 'h3' ? motion.h3 : as === 'div' ? motion.div : motion.h2
   return (
     <Tag
@@ -138,6 +150,8 @@ export function Headline({
 }
 
 export function Line({ children, className = '' }: { children: ReactNode; className?: string }) {
+  const reduced = usePrefersReducedMotion()
+  if (reduced) return <span className={className}>{children}</span>
   return (
     <span className={`headline-mask ${className}`}>
       <motion.span className="headline-line" variants={lineVariants}>

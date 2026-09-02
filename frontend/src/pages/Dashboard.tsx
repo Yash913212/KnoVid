@@ -1133,17 +1133,20 @@ function KnowledgeCard({ video, onClick, onRetry }: { video: Video; onClick: () 
 
   const barWidth = STATUS_PROGRESS[video.status]
 
-  // Cursor-tracking spotlight — the classic premium card micro-interaction.
+  // Cursor-tracking spotlight — throttled via rAF for integrated GPU.
   const cardRef = useRef<HTMLDivElement>(null)
   const [spot, setSpot] = useState({ x: 50, y: 50, on: false })
+  const rafRef = useRef<number | null>(null)
   const onCardMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (rafRef.current) return
     const el = cardRef.current
     if (!el) return
     const r = el.getBoundingClientRect()
-    setSpot({
-      x: ((e.clientX - r.left) / r.width) * 100,
-      y: ((e.clientY - r.top) / r.height) * 100,
-      on: true,
+    const x = ((e.clientX - r.left) / r.width) * 100
+    const y = ((e.clientY - r.top) / r.height) * 100
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null
+      setSpot({ x, y, on: true })
     })
   }
 

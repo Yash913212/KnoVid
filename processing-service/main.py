@@ -19,8 +19,13 @@ from app.routers.media import router as media_router
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)-7s | %(name)s | %(message)s",
+    force=True,
 )
 logger = logging.getLogger(__name__)
+# Ensure uvicorn loggers also go to console
+for n in ("uvicorn", "uvicorn.error", "uvicorn.access"):
+    logging.getLogger(n).handlers = logging.getLogger().handlers
+    logging.getLogger(n).propagate = True
 
 
 @asynccontextmanager
@@ -60,8 +65,30 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ── Verbose request logger: every call + duration + errors ──
+from fastapi import Request
+import time
+import traceback
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start = time.time()
+    try:
+        response = await call_next(request)
+        ms = int((time.time() - start) * 1000)
+        level = "✓" if response.status_code < 400 else "⚠" if response.status_code < 500 else "✗"
+        logger.info(f"{level} {request.method} {request.url.path} → {response.status_code} ({ms}ms)")
+        return response
+    except Exception as e:
+        ms = int((time.time() - start) * 1000)
+        logger.error(f"✗ {request.method} {request.url.path} → 500 ({ms}ms) EXCEPTION: {e}")
+        traceback.print_exc()
+        raise
+
 app.include_router(media_router, tags=["media"])
 app.include_router(content_router, tags=["content"])
+
+logger.info("LLM config: url=%s model=%s key=%s ollama=%s", settings.llm_api_url, settings.llm_model, ("set" if settings.llm_api_key else "MISSING"), settings.ollama_enabled)
 
 
 @app.get("/health")

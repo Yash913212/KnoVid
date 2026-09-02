@@ -1,12 +1,12 @@
 import { motion } from 'motion/react'
 import type { ReactNode } from 'react'
 import { useLocation } from 'react-router-dom'
+import { usePrefersReducedMotion } from '../lib/motion'
 
-// Cinematic route transition: fade + rise + focus-resolve. Motion is always
-// enabled so every route change animates fully.
 export default function PageFade({ children }: { children: ReactNode }) {
   const location = useLocation()
-
+  const reduced = usePrefersReducedMotion()
+  if (reduced) return <div key={location.pathname}>{children}</div>
   return (
     <motion.div
       key={location.pathname}

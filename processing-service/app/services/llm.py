@@ -22,6 +22,7 @@ async def _call_provider(
     system: str,
     user: str,
 ) -> str | None:
+    import time
     headers = {"Content-Type": "application/json"}
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
@@ -38,15 +39,28 @@ async def _call_provider(
     if provider == "Ollama":
         payload["reasoning_effort"] = "none"
 
+    t0 = time.time()
+    logger.info(f"→ {provider} {url} model={model} sys={len(system)}c user={len(user)}c")
     resp = await client.post(
         f"{url.rstrip('/')}/chat/completions",
         headers=headers,
         json=payload,
     )
+    ms = int((time.time() - t0) * 1000)
+    logger.info(f"← {provider} HTTP {resp.status_code} ({ms}ms)")
+    if resp.status_code >= 400:
+        logger.error(f"✗ {provider} body: {resp.text[:2000]}")
     resp.raise_for_status()
-    content = resp.json()["choices"][0]["message"]["content"]
+    data = resp.json()
+    content = data["choices"][0]["message"]["content"]
+    # Also log reasoning if present (nemotron)
+    reasoning = data["choices"][0]["message"].get("reasoning", "")
+    if reasoning:
+        logger.info(f"  {provider} reasoning {len(reasoning)}c")
     if isinstance(content, str) and content.strip():
+        logger.info(f"✓ {provider} returned {len(content)} chars — preview: {content[:200].replace(chr(10), ' ')}…")
         return content
+    logger.warning(f"⚠ {provider} empty content: {str(data)[:1000]}")
     return None
 
 
@@ -58,7 +72,9 @@ async def call_llm(system: str, user: str) -> str | None:
         providers.append(("Ollama", settings.ollama_api_url, settings.ollama_api_key, settings.ollama_model))
 
     if not providers:
+        logger.warning("⚠ call_llm: NO providers configured (LLM_API_KEY missing and OLLAMA_ENABLED=false) — will use template fallback")
         return None
+    logger.info(f"call_llm: trying {len(providers)} provider(s): {[p[0] for p in providers]} — sys {len(system)}c user {len(user)}c")
 
     import httpx
     # A 401/402/403 means the key is bad, exhausted, or spend-limited. That
@@ -75,10 +91,19 @@ async def call_llm(system: str, user: str) -> str | None:
                     try:
                         result = await _call_provider(client, provider, url, api_key, model, system, user)
                         if result:
+                            logger.info(f"✓ call_llm: success via {provider} ({len(result)} chars)")
                             return result
                         break
                     except Exception as e:  # noqa: BLE001
+                        import traceback
                         status = getattr(getattr(e, "response", None), "status_code", None)
+                        logger.error(f"✗ {provider} attempt {attempt + 1}/2 failed: {e!r} status={status}")
+                        if hasattr(e, "response") and getattr(e.response, "text", None):
+                            try:
+                                logger.error(f"  body: {e.response.text[:1500]}")
+                            except Exception:
+                                pass
+                        traceback.print_exc()
                         if status in terminal_status:
                             logger.warning(
                                 "%s rejected the request (HTTP %s). Skipping it for this call%s.",
@@ -89,8 +114,11 @@ async def call_llm(system: str, user: str) -> str | None:
                             break
                         logger.warning("%s call failed (attempt %d/2): %r", provider, attempt + 1, e)
     except Exception as e:  # noqa: BLE001
-        logger.error("LLM client failed: %r", e)
+        import traceback
+        logger.error(f"✗ LLM client fatal: {e!r}")
+        traceback.print_exc()
 
+    logger.warning("⚠ call_llm: all providers failed — falling back to template")
     return None
 
 
