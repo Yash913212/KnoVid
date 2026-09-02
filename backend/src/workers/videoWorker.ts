@@ -1,5 +1,5 @@
 import { Job } from "bullmq";
-import { updateVideo, upsertGenerated, upsertGraph, upsertTranscript } from "../db/repository.js";
+import { updateVideo, upsertChapters, upsertGenerated, upsertGraph, upsertTranscript } from "../db/repository.js";
 import type { VideoStatus } from "../models/Video.js";
 import { createVideoWorker } from "../config/queue.js";
 import { config, processingHeaders } from "../config/index.js";
@@ -51,6 +51,12 @@ export async function processVideo(job: Job) {
     }
 
     await upsertTranscript(videoId, result.language, result.segments);
+
+    // Semantic chapter auto-segmentation arrives with the /process response.
+    // Older service versions may not return it, so it is optional.
+    if (Array.isArray(result.chapters) && result.chapters.length > 0) {
+      await upsertChapters(videoId, result.chapters);
+    }
 
     await setStatus(videoId, "analyzing");
 

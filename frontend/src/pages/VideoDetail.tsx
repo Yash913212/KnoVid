@@ -6,6 +6,7 @@ import { useFetch } from '../hooks/useFetch'
 import { getVideo, retryVideo, isProcessing, STATUS_DOTS, STATUS_PIPELINE_STEP, type Video } from '../api/videos'
 import { getTranscript, type Transcript, type Segment } from '../api/transcripts'
 import { getGraph, type Graph, type GraphNode } from '../api/graphs'
+import { getChapters, type Chapter } from '../api/chapters'
 import { translateVideo } from '../api/translate'
 import {
   generateContent,
@@ -24,6 +25,8 @@ import { Eyebrow } from '../components/ui/Eyebrow'
 import { Spinner } from '../components/ui/Spinner'
 import TranscriptSection from '../components/TranscriptSection'
 import VideoPlayer, { type VideoPlayerHandle } from '../components/VideoPlayer'
+import SemanticChapters from '../components/SemanticChapters'
+import ConceptDiffusion from '../components/ConceptDiffusion'
 const TopicTree = lazy(() => import('../components/TopicTree'))
 const KnowledgeGraph = lazy(() => import('../components/KnowledgeGraph'))
 const NeuralNavigator = lazy(() => import('../components/NeuralNavigator'))
@@ -46,7 +49,7 @@ const ENTITY_ICONS: Record<string, string> = {
   PRODUCT: '📦', EVENT: '📅', WORK_OF_ART: '🎨', LAW: '⚖️',
 }
 
-type MainTab = 'transcript' | 'graph' | 'generate' | 'recall'
+type MainTab = 'transcript' | 'graph' | 'generate' | 'recall' | 'diffusion'
 type GraphView = 'neural' | 'tree' | 'network' | 'list'
 
 export default function VideoDetail() {
@@ -76,6 +79,10 @@ export default function VideoDetail() {
   const { data: graph } = useFetch<Graph | null>(
     () => (id && video?.status === 'done' ? getGraph(id).catch(() => null) : Promise.resolve(null)), [id, video?.status, refreshTick]
   )
+  const { data: chaptersData } = useFetch<{ chapters: Chapter[] } | null>(
+    () => (id && video?.status === 'done' ? getChapters(id).catch(() => null) : Promise.resolve(null)), [id, video?.status, refreshTick]
+  )
+  const chapters = useMemo(() => chaptersData?.chapters ?? [], [chaptersData])
 
   useEffect(() => {
     if (!id || !transcript || !targetLang) {
@@ -329,6 +336,9 @@ export default function VideoDetail() {
             Knowledge Graph {graph ? `(${graph.nodes.length})` : ''}
           </TabBtn>
           <TabBtn active={mainTab === 'generate'} onClick={() => setMainTab('generate')} disabled={!transcript}>AI Chat</TabBtn>
+          <TabBtn active={mainTab === 'diffusion'} onClick={() => setMainTab('diffusion')} disabled={!graph || displaySegments.length === 0}>
+            Diffusion
+          </TabBtn>
           <TabBtn active={mainTab === 'recall'} onClick={() => setMainTab('recall')} disabled={!transcript || recallCards.length === 0}>
             Recall Loop
           </TabBtn>
@@ -345,12 +355,21 @@ export default function VideoDetail() {
               transition={transitions.micro}
             >
               {mainTab === 'transcript' && (displaySegments.length > 0 ? (
-                <TranscriptSection
-                  videoId={id!}
-                  segments={displaySegments}
-                  langLabel={targetLang || originalLang}
-                  onSeek={handleSeek}
-                />
+                <div className="space-y-4">
+                  {chapters.length > 0 && (
+                    <SemanticChapters
+                      chapters={chapters}
+                      duration={video.duration || displaySegments[displaySegments.length - 1]?.end || 0}
+                      onSeek={handleSeek}
+                    />
+                  )}
+                  <TranscriptSection
+                    videoId={id!}
+                    segments={displaySegments}
+                    langLabel={targetLang || originalLang}
+                    onSeek={handleSeek}
+                  />
+                </div>
               ) : video.status === 'done' ? (
                 <div className="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-[#2BA6A0]/40 bg-white/65 py-16 text-center text-stone-500 backdrop-blur-xl dark:border-[#C17EF9]/40 dark:bg-stone-900/50 dark:text-stone-400">
                   No transcript.
@@ -465,6 +484,15 @@ export default function VideoDetail() {
               )}
 
               {mainTab === 'generate' && <GeneratePanel videoId={id!} />}
+
+              {mainTab === 'diffusion' && graph && displaySegments.length > 0 && (
+                <ConceptDiffusion
+                  segments={displaySegments}
+                  nodes={displayNodes}
+                  duration={video.duration || displaySegments[displaySegments.length - 1]?.end || 0}
+                  onSeek={handleSeek}
+                />
+              )}
 
               {mainTab === 'recall' && recallCards.length > 0 && (
                 <RecallPanel

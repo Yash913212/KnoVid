@@ -8,6 +8,7 @@ import { findVideoByFileName } from "./db/repository.js";
 import videoRoutes from "./routes/videos.js";
 import transcriptRoutes from "./routes/transcripts.js";
 import graphRoutes from "./routes/graphs.js";
+import chapterRoutes from "./routes/chapters.js";
 import generateRoutes from "./routes/generate.js";
 import translateRoutes from "./routes/translate.js";
 import authRoutes from "./routes/auth.js";
@@ -22,6 +23,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/videos", videoRoutes);
 app.use("/api/transcripts", transcriptRoutes);
 app.use("/api/graphs", graphRoutes);
+app.use("/api/chapters", chapterRoutes);
 app.use("/api/generate", generateRoutes);
 app.use("/api/translate", translateRoutes);
 

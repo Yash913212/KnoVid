@@ -1,4 +1,4 @@
-import { createClient, type User } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
 import { config } from "./index.js";
 
 const serverKey = config.supabaseServerKey;
@@ -20,9 +20,3 @@ export const supabase = createClient(config.supabaseUrl, apiKey, {
 export const supabaseAuth = createClient(config.supabaseUrl, config.supabasePublishableKey || apiKey, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
-
-export async function getSupabaseUser(accessToken: string): Promise<User> {
-  const { data, error } = await supabase.auth.getUser(accessToken);
-  if (error || !data.user) throw new Error(error?.message || "Invalid Supabase session");
-  return data.user;
-}

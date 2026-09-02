@@ -3,6 +3,7 @@ import type { IVideo, VideoSource, VideoStatus } from "../models/Video.js";
 import type { ITranscript, ISegment } from "../models/Transcript.js";
 import type { IGraph, IGraphEdge, IGraphNode } from "../models/Graph.js";
 import type { ContentType, IGeneratedContent } from "../models/GeneratedContent.js";
+import type { IChapter } from "../models/Chapter.js";
 
 function fail(error: { message: string } | null): void {
   if (error) throw new Error(error.message);
@@ -236,4 +237,48 @@ export async function upsertGenerated(videoId: string, type: ContentType, conten
   const { data, error } = await supabase.from("generated_content").upsert({ video_id: videoId, type, content, format }, { onConflict: "video_id,type" }).select("*").single();
   fail(error);
   return mapGenerated(data);
+}
+
+function mapChapter(row: any): IChapter {
+  return {
+    _id: row.id,
+    videoId: row.video_id,
+    index: row.chapter_index,
+    title: row.title,
+    start: Number(row.start_time),
+    end: Number(row.end_time),
+    summary: row.summary ?? "",
+    keywords: row.keywords ?? [],
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export async function getChapters(videoId: string): Promise<IChapter[]> {
+  const { data, error } = await supabase
+    .from("video_chapters")
+    .select("*")
+    .eq("video_id", videoId)
+    .order("chapter_index", { ascending: true });
+  fail(error);
+  return (data ?? []).map(mapChapter);
+}
+
+export type ChapterInput = Pick<IChapter, "title" | "start" | "end" | "summary" | "keywords">;
+
+export async function upsertChapters(videoId: string, chapters: ChapterInput[]): Promise<void> {
+  if (!chapters.length) return;
+  const rows = chapters.map((chapter, index) => ({
+    video_id: videoId,
+    chapter_index: index,
+    title: chapter.title,
+    start_time: chapter.start,
+    end_time: chapter.end,
+    summary: chapter.summary ?? "",
+    keywords: chapter.keywords ?? [],
+  }));
+  const { error } = await supabase.from("video_chapters").upsert(rows, {
+    onConflict: "video_id,chapter_index",
+  });
+  fail(error);
 }

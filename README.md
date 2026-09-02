@@ -1,16 +1,17 @@
 # KnoVid
 
 KnoVid turns videos into searchable knowledge. Upload a file or paste a URL to
-get a speaker-aware transcript, a knowledge graph, summaries, study notes,
-quizzes, translation, and grounded Q&A in one workspace.
+get a speaker-aware transcript, a knowledge graph, auto-detected chapters, a
+concept diffusion map, summaries, study notes, quizzes, translation, and
+grounded Q&A in one workspace.
 
 ## Stack
 
 | Service | Stack | Port | Role |
 | --- | --- | ---: | --- |
-| `frontend/` | React 19, Vite, Tailwind 4 | `5173` | Dashboard, player, transcript, graph, Q&A |
+| `frontend/` | React 19, Vite, Tailwind 4 | `5173` | Dashboard, player, transcript, chapters, concept diffusion, graph, Q&A |
 | `backend/` | Node 20+, Express, TypeScript | `3001` | API, Supabase Auth, persistence, BullMQ worker |
-| `processing-service/` | Python 3.12, FastAPI | `8000` | Downloading, transcription, diarization, analysis, generation |
+| `processing-service/` | Python 3.12/3.13, FastAPI (modular: routers / services / schemas / core) | `8000` | Downloading, transcription, diarization, chapter segmentation, analysis, generation |
 
 The services run natively. Docker is not required.
 
@@ -29,17 +30,20 @@ Processing service :8000
     ├─ Whisper                transcription
     ├─ pyannote               optional speaker diarization
     ├─ spaCy + TF-IDF         entities, topics, keywords, graph
+    ├─ sliding-window TF-IDF  semantic chapter auto-segmentation
     └─ OpenAI-compatible LLM summary, notes, quiz, chat, translation
 ```
 
 Both uploads and URL submissions enqueue the same processing pipeline:
 
 1. The backend creates a queued video row in Supabase and adds a BullMQ job.
-2. The worker calls `/process`, then `/analyze`, then generates a summary.
+2. The worker calls `/process` (transcript + chapters), then `/analyze`, then
+   generates a summary. Chapters are persisted to the new `video_chapters`
+   table.
 3. The frontend polls the video status and displays progress or a retryable
    error.
-4. Notes, quizzes, chat, translation, and exports use the saved transcript and
-   graph.
+4. Notes, quizzes, chat, translation, exports, the chapter rail, and the concept
+   diffusion map use the saved transcript and graph.
 
 ## Requirements
 
@@ -112,9 +116,12 @@ and sends its access token to the backend as a Bearer token.
 
 Processing variables are documented in
 [`processing-service/.env.example`](processing-service/.env.example), including
-`WHISPER_MODEL`, `HF_TOKEN`, `LLM_API_URL`, `LLM_API_KEY`, Ollama fallback
-settings, and `PROCESSING_AUTH_TOKEN`. When the token is set there, the backend
-must be configured with the same value.
+`WHISPER_MODEL`, `HF_TOKEN`, `LLM_API_URL`, `LLM_API_KEY`, `LLM_MODEL`, Ollama
+fallback settings, `MAX_VIDEO_DURATION_S`, and `PROCESSING_AUTH_TOKEN`. The
+config auto-detects OpenRouter keys (`sk-or-v1-...`) and defaults
+`LLM_API_URL` to `https://openrouter.ai/api/v1`; set `LLM_MODEL` to a free
+tier model such as `nvidia/nemotron-3.5-lightning:free`. When the token is set
+there, the backend must be configured with the same value.
 
 ## API
 
@@ -130,6 +137,7 @@ Supabase access token in `Authorization: Bearer <token>`.
 | `POST` | `/videos/:id/retry` | Retry a failed job |
 | `GET` | `/videos` or `/videos/:id` | List or fetch videos |
 | `GET` | `/transcripts/:videoId` | Fetch transcript segments |
+| `GET` | `/chapters/:videoId` | Fetch auto-detected semantic chapters |
 | `GET` | `/graphs/:videoId` | Fetch knowledge graph nodes and edges |
 | `POST` | `/generate` | Generate summary, notes, or quiz |
 | `POST` | `/generate/chat/:videoId` | Ask a question about a video |
@@ -162,11 +170,20 @@ Implemented:
 - Transcript search and SRT/VTT subtitle export
 - Retryable processing failures with visible error messages
 - Responsive reduced-motion-aware frontend UI
+- Semantic chapter auto-segmentation with a click-to-seek chapter rail (the
+  transcript tab shows proportional blocks over each chapter's approximate
+  duration; the segment under the playhead highlights live)
+- Timeline concept diffusion map (a 48-bucket density timeline of the top
+  concepts from the knowledge graph overlaid on the transcript, with
+  click-to-seek and a live playhead)
+- LLM generation that works with a free OpenRouter tier
+  (`nvidia/nemotron-3.5-lightning:free` by default) and falls back to a local
+  Ollama model when OpenRouter is unavailable or out of credit
 
 Next:
 
 - PDF/DOCX export
 - Editable transcript synchronized with playback
 - Cross-video full-text search
-- Chapter segmentation, sentiment and filler-word analysis
+- Sentiment and filler-word analysis
 - Speaker renaming

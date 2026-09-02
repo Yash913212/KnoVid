@@ -168,8 +168,8 @@ export const pageShell = {
 // Micro-interactions: hover scale, press, focus rings
 export const tw = {
   microHover: 'transition-transform duration-200 ease-out hover:-translate-y-0.5 hover:scale-[1.025] active:scale-[0.985]',
-  microHoverBg: 'transition-colors duration-200 ease-out hover:bg-amber-50/70 dark:hover:bg-stone-800/70',
-  microFocus: 'focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2',
+  microHoverBg: 'transition-colors duration-200 ease-out hover:bg-[#2BA6A0]/10 dark:hover:bg-stone-800/70',
+  microFocus: 'focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2BA6A0] focus-visible:ring-offset-2',
   contentTransition: 'transition-all duration-300 ease-in-out',
   pageTransition: 'transition-all duration-450 ease-in-out',
 
@@ -185,32 +185,43 @@ export const tw = {
 
   // Card hover: lift 2px + border warm-up + shadow growth.
   cardHover:
-    'transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-amber-300/70 hover:shadow-card-hover dark:hover:border-amber-400/40',
+    'transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-[#2BA6A0]/50 hover:shadow-card-hover dark:hover:border-[#C17EF9]/40',
 
   // Alias kept for VideoDetail usages.
-  surfaceHover: 'transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-amber-300/70 hover:shadow-card-hover dark:hover:border-amber-400/40',
+  surfaceHover: 'transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-[#2BA6A0]/50 hover:shadow-card-hover dark:hover:border-[#C17EF9]/40',
 
   invitingCta:
     'transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-glow-amber-strong active:scale-[0.985]',
 
-  // Gold accent used sparingly on the single primary action per screen.
+  // Mint accent used sparingly on the single primary action per screen.
   goldCta:
-    'bg-amber-500 text-stone-950 shadow-glow-amber hover:bg-amber-400 disabled:bg-amber-500/60 disabled:text-stone-900/60 disabled:shadow-none',
+    'bg-[#2BA6A0] text-stone-950 shadow-glow-amber hover:bg-[#73CEC2] disabled:bg-[#2BA6A0]/60 disabled:text-stone-900/60 disabled:shadow-none',
 
   // Wrapper for inputs — adds a glowing gradient border on focus.
   glowWrap: 'input-glow relative',
 
   // Smooth focus-ring transition for inputs (borders + soft ring glow)
   input:
-    'transition-all duration-200 ease-out border-stone-200 bg-white/82 placeholder:text-stone-400 focus:border-amber-500 focus:ring-4 focus:ring-amber-500/15 focus:outline-none dark:border-stone-700 dark:bg-stone-900/80 dark:placeholder:text-stone-500 dark:text-stone-100 dark:focus:border-amber-400 dark:focus:ring-amber-400/15',
+    'transition-all duration-200 ease-out border-stone-200 bg-white/82 placeholder:text-stone-400 focus:border-[#2BA6A0] focus:ring-4 focus:ring-[#2BA6A0]/15 focus:outline-none dark:border-stone-700 dark:bg-stone-900/80 dark:placeholder:text-stone-500 dark:text-stone-100 dark:focus:border-[#C17EF9] dark:focus:ring-[#C17EF9]/15',
 }
 
 // ─── Hooks ──────────────────────────────────────────────────────
 
 export function usePrefersReducedMotion(): boolean {
-  // Animations are a core part of the KnoVid experience — always play them
-  // in full regardless of OS motion preferences.
-  return false
+  const [prefersReduced, setPrefersReduced] = useState(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return false
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  })
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return
+    const mql = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const onchange = (e: MediaQueryListEvent) => setPrefersReduced(e.matches)
+    mql.addEventListener('change', onchange)
+    return () => mql.removeEventListener('change', onchange)
+  }, [])
+
+  return prefersReduced
 }
 
 // ─── Scroll-triggered animations ────────────────────────────────────
@@ -255,6 +266,7 @@ export function useStaggeredScrollAnimation(itemCount: number, options: ScrollAn
   const { threshold = 0.1, rootMargin = '0px 0px -50px 0px', triggerOnce = true } = options
   const [visibleItems, setVisibleItems] = useState<Set<number>>(new Set())
   const elementRef = useRef<HTMLDivElement>(null)
+  const pendingTimers = useRef<number[]>([])
 
   useEffect(() => {
     const element = elementRef.current
@@ -263,16 +275,21 @@ export function useStaggeredScrollAnimation(itemCount: number, options: ScrollAn
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
-          // Stagger the visibility of items
-          for (let i = 0; i < itemCount; i++) {
-            setTimeout(() => {
+          // Stagger the visibility of items — timeouts are tracked so the
+          // effect can clear them when the element leaves view or unmounts.
+          setVisibleItems(new Set())
+          const timers = Array.from({ length: itemCount }, (_, i) =>
+            window.setTimeout(() => {
               setVisibleItems(prev => new Set([...prev, i]))
             }, i * 50)
-          }
+          )
+          pendingTimers.current = timers
           if (triggerOnce) {
             observer.unobserve(element)
           }
         } else if (!triggerOnce) {
+          pendingTimers.current.forEach(clearTimeout)
+          pendingTimers.current = []
           setVisibleItems(new Set())
         }
       },
@@ -280,7 +297,11 @@ export function useStaggeredScrollAnimation(itemCount: number, options: ScrollAn
     )
 
     observer.observe(element)
-    return () => observer.disconnect()
+    return () => {
+      observer.disconnect()
+      pendingTimers.current.forEach(clearTimeout)
+      pendingTimers.current = []
+    }
   }, [itemCount, threshold, rootMargin, triggerOnce])
 
   return { ref: elementRef, visibleItems }
