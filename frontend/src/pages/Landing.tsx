@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { motion, useScroll, useMotionValueEvent, useTransform } from 'motion/react'
+import { motion, useScroll, useTransform } from 'motion/react'
 import {
   ArrowDownRight,
   ArrowRight,
@@ -72,7 +72,6 @@ export default function Landing() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
   const navigate = useNavigate()
-  const { scrollY } = useScroll()
   const workflowRef = useRef<HTMLDivElement>(null)
   const { scrollYProgress: workflowProgress } = useScroll({
     target: workflowRef as unknown as React.RefObject<Element>,
@@ -80,15 +79,18 @@ export default function Landing() {
   } as unknown as Parameters<typeof useScroll>[0])
   const workflowFillX = useTransform(workflowProgress, [0, 1], [0, 1])
 
-  useMotionValueEvent(scrollY, 'change', (latest) => {
-    const isScrolled = latest > 24
-    setScrolled((prev) => (prev !== isScrolled ? isScrolled : prev))
-  })
-
-  // Fallback for initial render / SSR
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 24)
-    onScroll()
+    let lastState = window.scrollY > 24
+    setScrolled(lastState)
+
+    const onScroll = () => {
+      const isScrolled = window.scrollY > 24
+      if (isScrolled !== lastState) {
+        lastState = isScrolled
+        setScrolled(isScrolled)
+      }
+    }
+
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
@@ -206,14 +208,31 @@ export default function Landing() {
                       <div className="map-label"><span>KNOWLEDGE FIELD</span><span>26 NODES</span></div>
                       <svg viewBox="0 0 340 220" role="img" aria-label="Knowledge graph preview">
                         <defs><linearGradient id="hero-line" x1="0" x2="1"><stop stopColor="#B8D96B" /><stop offset="1" stopColor="#B06AE0" /></linearGradient><filter id="hero-glow"><feGaussianBlur stdDeviation="4" /></filter></defs>
-                        <g className="graph-lines" stroke="url(#hero-line)" strokeWidth="1.3" opacity=".65"><path d="M52 139 105 61 184 117 260 52 305 152 184 117 92 184 52 139 305 152" /><path d="M105 61 92 184" /><path d="M184 117 260 52" /></g>
-                        <g className="graph-halos" fill="#B8D96B" filter="url(#hero-glow)" opacity=".8"><circle cx="52" cy="139" r="7" /><circle cx="184" cy="117" r="9" /><circle cx="305" cy="152" r="7" /></g>
-                        <g className="graph-nodes"><circle cx="52" cy="139" r="4" /><circle cx="105" cy="61" r="3" /><circle cx="184" cy="117" r="6" /><circle cx="260" cy="52" r="4" /><circle cx="305" cy="152" r="5" /><circle cx="92" cy="184" r="3" /></g>
+                        <g className="graph-lines" stroke="url(#hero-line)" strokeWidth="1.3" opacity=".65">
+                          <motion.path initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 2, ease: "easeInOut", repeat: Infinity, repeatType: "reverse" }} d="M52 139 105 61 184 117 260 52 305 152 184 117 92 184 52 139 305 152" />
+                          <motion.path initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 1.5, ease: "easeInOut", repeat: Infinity, repeatType: "reverse", delay: 0.5 }} d="M105 61 92 184" />
+                          <motion.path initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 1.5, ease: "easeInOut", repeat: Infinity, repeatType: "reverse", delay: 1 }} d="M184 117 260 52" />
+                        </g>
+                        <g className="graph-halos" fill="#B8D96B" filter="url(#hero-glow)" opacity=".8">
+                          <motion.circle initial={{ scale: 0 }} animate={{ scale: [0, 1.2, 1] }} transition={{ duration: 2, repeat: Infinity, repeatType: "reverse" }} cx="52" cy="139" r="7" />
+                          <motion.circle initial={{ scale: 0 }} animate={{ scale: [0, 1.2, 1] }} transition={{ duration: 2, repeat: Infinity, repeatType: "reverse", delay: 0.3 }} cx="184" cy="117" r="9" />
+                          <motion.circle initial={{ scale: 0 }} animate={{ scale: [0, 1.2, 1] }} transition={{ duration: 2, repeat: Infinity, repeatType: "reverse", delay: 0.6 }} cx="305" cy="152" r="7" />
+                        </g>
+                        <g className="graph-nodes">
+                          <circle cx="52" cy="139" r="4" /><circle cx="105" cy="61" r="3" /><circle cx="184" cy="117" r="6" /><circle cx="260" cy="52" r="4" /><circle cx="305" cy="152" r="5" /><circle cx="92" cy="184" r="3" />
+                        </g>
                         <g className="graph-labels"><text x="36" y="158">MEMORY</text><text x="164" y="139">LEARNING</text><text x="278" y="174">SYSTEMS</text></g>
                       </svg>
                       <div className="map-footer"><span><i className="legend-lime" /> high signal</span><span><i className="legend-orchid" /> connected</span></div>
                     </div>
-                    <div className="preview-insight-card"><span className="insight-icon"><Sparkles size={14} /></span><div><small>NEW CONNECTION</small><strong>Memory ↔ Learning</strong><p>Grounded in 4 source moments</p></div><ArrowDownRight size={15} /></div>
+                    <motion.div
+                      className="preview-insight-card"
+                      initial={{ y: 20, opacity: 0 }}
+                      animate={{ y: 0, opacity: 1 }}
+                      transition={{ delay: 2, duration: 0.8, ease: "easeOut" }}
+                    >
+                      <span className="insight-icon"><Sparkles size={14} /></span><div><small>NEW CONNECTION</small><strong>Memory ↔ Learning</strong><p>Grounded in 4 source moments</p></div><ArrowDownRight size={15} />
+                    </motion.div>
                   </div>
                 </div>
                 <div className="floating-stat stat-one"><span>01</span><strong>Searchable</strong><small>every sentence</small></div>

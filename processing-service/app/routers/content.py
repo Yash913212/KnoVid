@@ -16,6 +16,7 @@ from app.schemas.schemas import (
     FuseResponse,
     GenerateRequest,
     GenerateResponse,
+    SegmentOut,
     TranslateRequest,
     TranslateResponse,
 )

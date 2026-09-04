@@ -11,6 +11,7 @@ import CursorGlow from './components/CursorGlow'
 import ScrollProgress from './components/ScrollProgress'
 import LoadingPage from './components/LoadingPage'
 import ErrorBoundary from './components/ErrorBoundary'
+import SmoothScroll from './components/SmoothScroll'
 
 const Login = lazy(() => import('./pages/Login'))
 const Register = lazy(() => import('./pages/Register'))
@@ -31,6 +32,7 @@ function App() {
     <ThemeProvider>
       <ToastProvider>
         <AuthProvider>
+          <SmoothScroll />
           <AuroraBackground />
           <CursorGlow />
           <ScrollProgress />

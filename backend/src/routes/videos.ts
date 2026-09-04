@@ -41,16 +41,29 @@ router.post("/upload", authMiddleware, upload.any(), async (req: AuthRequest, re
       targetLanguage,
     });
 
-    await videoQueue.add(
-      "process-video",
-      {
-        videoId: video._id,
-        type: "upload",
-        filePath: file.path,
-        targetLanguage,
-      },
-      { jobId: video._id, attempts: 2, backoff: { type: "exponential", delay: 5000 } }
-    );
+    try {
+      await videoQueue.add(
+        "process-video",
+        {
+          videoId: video._id,
+          type: "upload",
+          filePath: file.path,
+          targetLanguage,
+        },
+        { jobId: video._id, attempts: 2, backoff: { type: "exponential", delay: 5000 } }
+      );
+    } catch (queueErr: any) {
+      console.warn(`[Queue] Failed to add upload job to Redis: ${queueErr?.message}. Falling back to direct background processing.`);
+      import("../workers/videoWorker.js").then(({ processVideo }) => {
+        processVideo({
+          data: { videoId: video._id, type: "upload", filePath: file.path, targetLanguage },
+          id: video._id,
+          attemptsMade: 0,
+          opts: { attempts: 1 },
+          updateProgress: async () => {},
+        } as any).catch(console.error);
+      });
+    }
 
     res.status(201).json({ id: video._id, status: video.status });
   } catch (err) {
@@ -76,16 +89,29 @@ router.post("/url", authMiddleware, async (req: AuthRequest, res: Response) => {
       targetLanguage,
     });
 
-    await videoQueue.add(
-      "process-video",
-      {
-        videoId: video._id,
-        type: "url",
-        url,
-        targetLanguage,
-      },
-      { jobId: video._id, attempts: 2, backoff: { type: "exponential", delay: 5000 } }
-    );
+    try {
+      await videoQueue.add(
+        "process-video",
+        {
+          videoId: video._id,
+          type: "url",
+          url,
+          targetLanguage,
+        },
+        { jobId: video._id, attempts: 2, backoff: { type: "exponential", delay: 5000 } }
+      );
+    } catch (queueErr: any) {
+      console.warn(`[Queue] Failed to add url job to Redis: ${queueErr?.message}. Falling back to direct background processing.`);
+      import("../workers/videoWorker.js").then(({ processVideo }) => {
+        processVideo({
+          data: { videoId: video._id, type: "url", url, targetLanguage },
+          id: video._id,
+          attemptsMade: 0,
+          opts: { attempts: 1 },
+          updateProgress: async () => {},
+        } as any).catch(console.error);
+      });
+    }
 
     res.status(201).json({ id: video._id, status: video.status });
   } catch (err) {
@@ -113,14 +139,27 @@ router.post("/:id/retry", authMiddleware, async (req: AuthRequest, res: Response
 
     await updateVideo(video._id, { status: "queued", errorMessage: null });
 
-    // Re-adding to a queue with the same jobId does not re-queue an existing
-    // terminal job, so remove any prior job before enqueuing a fresh one.
-    await videoQueue.remove(video._id).catch(() => undefined);
-    await videoQueue.add(
-      "process-video",
-      payload,
-      { jobId: video._id, attempts: 2, backoff: { type: "exponential", delay: 5000 } }
-    );
+    try {
+      // Re-adding to a queue with the same jobId does not re-queue an existing
+      // terminal job, so remove any prior job before enqueuing a fresh one.
+      await videoQueue.remove(video._id).catch(() => undefined);
+      await videoQueue.add(
+        "process-video",
+        payload,
+        { jobId: video._id, attempts: 2, backoff: { type: "exponential", delay: 5000 } }
+      );
+    } catch (queueErr: any) {
+      console.warn(`[Queue] Failed to add retry job to Redis: ${queueErr?.message}. Falling back to direct background processing.`);
+      import("../workers/videoWorker.js").then(({ processVideo }) => {
+        processVideo({
+          data: payload,
+          id: video._id,
+          attemptsMade: 0,
+          opts: { attempts: 1 },
+          updateProgress: async () => {},
+        } as any).catch(console.error);
+      });
+    }
 
     res.json({ id: video._id, status: "queued" });
   } catch {
