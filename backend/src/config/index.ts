@@ -20,6 +20,7 @@ export const config = {
   processingAuthToken: process.env.PROCESSING_AUTH_TOKEN || "",
   // Timeout (ms) for the /process pipeline call. Long videos transcribe slowly.
   processingTimeoutMs: parseInt(process.env.PROCESSING_TIMEOUT_MS || "600000", 10),
+  openRouterApiKey: process.env.OPENROUTER_API_KEY || process.env.LLM_API_KEY || "",
 };
 
 // Headers shared by every outbound processing-service call.
@@ -27,6 +28,8 @@ export function processingHeaders(extra: Record<string, string> = {}): Record<st
   return {
     "Content-Type": "application/json",
     ...(config.processingAuthToken ? { "X-Processing-Auth": config.processingAuthToken } : {}),
+    ...(config.openRouterApiKey ? { "X-OpenRouter-Key": config.openRouterApiKey } : {}),
     ...extra,
   };
 }
+

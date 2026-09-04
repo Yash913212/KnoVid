@@ -704,11 +704,11 @@ function MagicUploadPortal(props: PortalProps) {
       <input
         ref={fileInputRef}
         type="file"
-        accept="video/*"
+        accept="video/*,audio/*,.pdf,.txt,.md,.docx,.csv,.json"
         onChange={onUploadInput}
         disabled={busy}
         className="sr-only"
-        aria-label="Upload a video file"
+        aria-label="Upload any video, audio, or document file"
       />
 
       <div className="relative grid place-items-center" style={{ width: 300, height: 300 }}>
@@ -716,7 +716,7 @@ function MagicUploadPortal(props: PortalProps) {
         <motion.div
           role="button"
           tabIndex={0}
-          aria-label="Summon knowledge — drop a video, paste a link, or click"
+          aria-label="Summon knowledge — drop any video, audio, or document, paste any link, or click"
           onClick={handleClick}
           onKeyDown={(e) => {
             if ((e.key === 'Enter' || e.key === ' ') && !busy) {
@@ -751,7 +751,7 @@ function MagicUploadPortal(props: PortalProps) {
                 </motion.span>
               </div>
               <p className="font-display text-xl font-black text-stone-900 dark:text-white">Ingesting…</p>
-              <p className="text-[11px] text-stone-500 dark:text-stone-400">Opening the link, waking Whisper…</p>
+              <p className="text-[11px] text-stone-500 dark:text-stone-400">Opening the link & analyzing content…</p>
             </div>
           ) : processing && processingStatus ? (
             <div className="flex flex-col items-center gap-2 px-6 text-center">
@@ -785,7 +785,7 @@ function MagicUploadPortal(props: PortalProps) {
               </span>
               <p className="font-display mt-2 text-xl font-black text-stone-900 dark:text-white">Summon Knowledge</p>
               <p className="text-[11px] leading-relaxed text-stone-500 dark:text-stone-400">
-                {dragOver ? 'Release to transmute' : 'Drop a video, paste a link, or click'}
+                {dragOver ? 'Release to transmute' : 'Drop any video, audio, or document (PDF, TXT, DOCX), paste any link, or click'}
               </p>
             </div>
           )}
@@ -808,7 +808,7 @@ function MagicUploadPortal(props: PortalProps) {
                 <input
                   ref={urlInputRef}
                   type="url"
-                  placeholder="Paste any video link — YouTube, Vimeo, direct MP4…"
+                  placeholder="Paste any URL — YouTube, Wikipedia, Medium, news, documentation, blog…"
                   className="w-full rounded-xl border border-white/10 bg-black/40 px-3.5 py-2.5 text-sm text-stone-100 placeholder:text-stone-400 backdrop-blur-xl focus:border-[#2BA6A0] focus:outline-none focus:shadow-[0_2px_10px_-3px_rgba(43,166,160,0.5)] focus:ring-0 dark:border-white/10 dark:bg-white/[0.05] dark:text-stone-100 dark:placeholder:text-stone-500"
                   value={url}
                   onChange={(e) => onUrlChange(e.target.value)}
@@ -826,7 +826,7 @@ function MagicUploadPortal(props: PortalProps) {
         </Magnetic>
             </div>
             <p className="mt-2 text-center text-xs text-stone-500 dark:text-stone-500">
-              Supports 1,300+ sites via yt-dlp · direct files up to 2GB (MP4, MOV, AVI, WebM)
+              Supports any web URL (articles, Wikipedia, docs, blogs) & YouTube · files (PDF, DOCX, TXT, MP3, WAV, MP4)
             </p>
           </motion.div>
         )}
@@ -834,7 +834,7 @@ function MagicUploadPortal(props: PortalProps) {
       {busy && (
         <div className="mt-8 w-full max-w-xl">
           <p className="text-center text-xs text-stone-500 dark:text-stone-500">
-            Supports 1,300+ sites via yt-dlp · direct files up to 2GB (MP4, MOV, AVI, WebM)
+            Supports any web URL (articles, Wikipedia, docs, blogs) & YouTube · files (PDF, DOCX, TXT, MP3, WAV, MP4)
           </p>
         </div>
       )}

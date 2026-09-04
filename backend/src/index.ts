@@ -12,6 +12,7 @@ import chapterRoutes from "./routes/chapters.js";
 import generateRoutes from "./routes/generate.js";
 import translateRoutes from "./routes/translate.js";
 import authRoutes from "./routes/auth.js";
+import llmRoutes from "./routes/llm.js";
 import { startVideoWorker } from "./workers/videoWorker.js";
 
 const app = express();
@@ -43,6 +44,8 @@ app.use("/api/graphs", graphRoutes);
 app.use("/api/chapters", chapterRoutes);
 app.use("/api/generate", generateRoutes);
 app.use("/api/translate", translateRoutes);
+app.use("/api/llm", llmRoutes);
+
 
 // Uploaded media is private per-user: require a valid Supabase session and
 // verify the file belongs to one of the caller's videos. <video> tags cannot

@@ -10,12 +10,23 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 # Resolve relative to this file so it works regardless of CWD.
+BACKEND_ENV = Path(__file__).resolve().parents[3] / "backend" / ".env"
+SERVICE_ENV = Path(__file__).resolve().parents[2] / ".env"
 DEFAULT_UPLOAD_DIR = Path(__file__).resolve().parents[3] / "backend" / "uploads"
-load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+
+# Load service env first, then backend env for any missing vars (e.g. OPENROUTER_API_KEY)
+load_dotenv(SERVICE_ENV)
+load_dotenv(BACKEND_ENV, override=False)
 
 
 class Settings:
     def __init__(self) -> None:
+        self.reload()
+
+    def reload(self) -> None:
+        load_dotenv(SERVICE_ENV, override=True)
+        load_dotenv(BACKEND_ENV, override=False)
+
         self.upload_dir = Path(os.getenv("UPLOAD_DIR", str(DEFAULT_UPLOAD_DIR))).resolve()
         self.whisper_model = os.getenv("WHISPER_MODEL", "base")
         self.hf_token = os.getenv("HF_TOKEN", "")
@@ -24,16 +35,17 @@ class Settings:
         # to present it via the X-Processing-Auth header.
         self.processing_auth_token = os.getenv("PROCESSING_AUTH_TOKEN", "")
 
-        # LLM provider settings.
-        self.llm_api_key = os.getenv("LLM_API_KEY", "").strip()
+        # OpenRouter / LLM provider settings.
+        self.openrouter_api_key = os.getenv("OPENROUTER_API_KEY", "").strip()
+        self.llm_api_key = self.openrouter_api_key or os.getenv("LLM_API_KEY", "").strip()
         self.llm_api_url = os.getenv("LLM_API_URL", "").strip()
-        if self.llm_api_key.startswith("sk-or-v1"):
-            # OpenRouter keys are not accepted by the OpenAI endpoint. Default
-            # to the OpenRouter host unless the operator set a URL explicitly.
+
+        if self.openrouter_api_key or self.llm_api_key.startswith("sk-or"):
             self.llm_api_url = self.llm_api_url or "https://openrouter.ai/api/v1"
-        self.llm_api_url = self.llm_api_url or "https://api.openai.com/v1"
+        self.llm_api_url = self.llm_api_url or "https://openrouter.ai/api/v1"
+
         self.llm_model = os.getenv("LLM_MODEL", "nvidia/nemotron-3.5-lightning:free")
-        self.ollama_enabled = os.getenv("OLLAMA_ENABLED", "true").lower() in {"1", "true", "yes", "on"}
+        self.ollama_enabled = os.getenv("OLLAMA_ENABLED", "false").lower() in {"1", "true", "yes", "on"}
         self.ollama_api_url = os.getenv("OLLAMA_API_URL", "http://localhost:11434/v1")
         self.ollama_api_key = os.getenv("OLLAMA_API_KEY", "ollama")
         self.ollama_model = os.getenv("OLLAMA_MODEL", "qwen3:8b")
@@ -51,3 +63,4 @@ class Settings:
 
 
 settings = Settings()
+

@@ -15,8 +15,6 @@ interface Props {
   onTimeUpdate?: (seconds: number) => void
 }
 
-const YT_POLL_INTERVAL = 300
-const SEEK_STEP = 5
 const IDLE_MS = 3000
 const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2]
 const YT_ORIGIN = 'https://www.youtube-nocookie.com'
@@ -56,6 +54,29 @@ const Icons = {
       <path d="M3 12h4l2-6 4 12 2-6h4" />
     </svg>
   ),
+  document: (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+      <line x1="16" y1="13" x2="8" y2="13" />
+      <line x1="16" y1="17" x2="8" y2="17" />
+      <line x1="10" y1="9" x2="8" y2="9" />
+    </svg>
+  ),
+  globe: (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <line x1="2" y1="12" x2="22" y2="12" />
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+    </svg>
+  ),
+  external: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+      <polyline points="15 3 21 3 21 9" />
+      <line x1="10" y1="14" x2="21" y2="3" />
+    </svg>
+  ),
 }
 
 const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(({ url, filePath, title, onTimeUpdate }, ref) => {
@@ -74,13 +95,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(({ url, filePath, title
   const [idle, setIdle] = useState(false)
   const [menu, setMenu] = useState<null | 'speed'>(null)
   const [scrubHover, setScrubHover] = useState<number | null>(null)
-  const [ytReady, setYtReady] = useState(false)
+  const [ytReady] = useState(true)
 
   const isYT = !!url && isYouTubeUrl(url)
-  const baseFileUrl = filePath ? `/api/files/${encodeURIComponent(filePath.split('/').pop() || '')}` : null
-  // /api/files is auth-gated; <video> cannot send Authorization headers, so the
-  // session token is appended as a query param. Start with no src (null) to
-  // avoid firing an untokenized request that would 401 on first paint.
+  const ext = (filePath || '').split('.').pop()?.toLowerCase() || ''
+  const isDocument = ['pdf', 'txt', 'docx', 'doc', 'md', 'json', 'csv'].includes(ext) || (!isYT && !filePath && !!url)
+  const isAudio = ['mp3', 'wav', 'm4a', 'aac', 'flac', 'ogg', 'opus'].includes(ext)
+
+  const baseFileUrl = filePath && !isDocument ? `/api/files/${encodeURIComponent(filePath.split('/').pop() || '')}` : null
   const [fileSrc, setFileSrc] = useState<string | null>(null)
 
   useEffect(() => {
@@ -100,6 +122,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(({ url, filePath, title
   // Expose seekTo to the transcript / graph
   useImperativeHandle(ref, () => ({
     seekTo(seconds: number) {
+      setCurrentTime(seconds)
+      onTimeUpdate?.(seconds)
       const v = videoRef.current
       if (v) {
         v.currentTime = Math.max(0, seconds)
@@ -111,7 +135,20 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(({ url, filePath, title
         )
       }
     },
-  }), [ytReady])
+  }), [ytReady, onTimeUpdate])
+
+  // Simulation timer for Document read-along mode
+  useEffect(() => {
+    if (!isDocument || !playing) return
+    const interval = setInterval(() => {
+      setCurrentTime((t) => {
+        const next = t + rate
+        onTimeUpdate?.(next)
+        return next
+      })
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [isDocument, playing, rate, onTimeUpdate])
 
   // ── Play/pause + time + buffering (HTML5 video) ────────────────
   const syncTime = useCallback(() => {
@@ -131,7 +168,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(({ url, filePath, title
     setBuffered(v.duration ? Math.min(100, (end / v.duration) * 100) : 0)
   }, [])
 
-  // ── Keyboard shortcuts ─────────────────────────────────────────
   const toggleFullscreen = useCallback(() => {
     const el = containerRef.current
     if (!el) return
@@ -139,151 +175,154 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(({ url, filePath, title
     else void el.requestFullscreen?.()
   }, [])
 
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      const v = videoRef.current
-      if (!v) return
-      const target = e.target as HTMLElement | null
-      if (['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON', 'A'].includes(target?.tagName || '')) return
-      if (target?.isContentEditable) return
-      // Only handle keys while the player is actually on screen and no
-      // modal/dialog is open on top of it.
-      const el = containerRef.current
-      if (!el) return
-      const rect = el.getBoundingClientRect()
-      if (rect.bottom <= 0 || rect.top >= window.innerHeight || rect.width === 0) return
-      if (document.querySelector('[role="dialog"], [data-modal]')) return
-      const key = e.key.toLowerCase()
-
-      switch (key) {
-        case ' ':
-        case 'k':
-          e.preventDefault()
-          if (v.paused) v.play()
-          else v.pause()
-          break
-        case 'arrowright':
-          v.currentTime = Math.min(v.currentTime + SEEK_STEP, v.duration || 0)
-          break
-        case 'arrowleft':
-          v.currentTime = Math.max(v.currentTime - SEEK_STEP, 0)
-          break
-        case 'arrowup':
-          e.preventDefault()
-          v.muted = false
-          v.volume = Math.min(1, v.volume + 0.1)
-          setMuted(false)
-          setVolume(v.volume)
-          break
-        case 'arrowdown':
-          e.preventDefault()
-          v.volume = Math.max(0, v.volume - 0.1)
-          setVolume(v.volume)
-          break
-        case 'm':
-          v.muted = !v.muted
-          setMuted(v.muted)
-          break
-        case 'f':
-          toggleFullscreen()
-          break
-      }
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [toggleFullscreen])
-
   const togglePlay = useCallback(() => {
-    const v = videoRef.current
-    if (!v) return
-    if (v.paused) v.play()
-    else v.pause()
-  }, [])
-
-  // ── Volume / rate sync the media element ───────────────────────
-  useEffect(() => {
-    const v = videoRef.current
-    if (!v) return
-    v.volume = volume
-    v.muted = muted
-  }, [volume, muted])
-
-  useEffect(() => {
-    const v = videoRef.current
-    if (v) v.playbackRate = rate
-  }, [rate])
-
-  // ── Auto-hide controls while playing ───────────────────────────
-  const poke = useCallback(() => {
-    if (!videoRef.current?.paused) {
-      setIdle(false)
-      if (idleTimer.current) clearTimeout(idleTimer.current)
-      idleTimer.current = setTimeout(() => setIdle(true), IDLE_MS)
+    if (isDocument) {
+      setPlaying((p) => !p)
+      return
     }
-  }, [])
-
-  useEffect(() => () => { if (idleTimer.current) clearTimeout(idleTimer.current) }, [])
-
-  // ── YouTube time polling ───────────────────────────────────────
-  useEffect(() => {
-    if (!isYT || !onTimeUpdate || !ytReady) return
-    const interval = setInterval(() => {
-      iframeRef.current?.contentWindow?.postMessage(
-        JSON.stringify({ event: 'command', func: 'getCurrentTime', args: [] }),
+    const v = videoRef.current
+    if (v) {
+      if (v.paused) void v.play()
+      else v.pause()
+      return
+    }
+    if (ytReady && iframeRef.current?.contentWindow) {
+      const func = playing ? 'pauseVideo' : 'playVideo'
+      iframeRef.current.contentWindow.postMessage(
+        JSON.stringify({ event: 'command', func }),
         YT_ORIGIN
       )
-    }, YT_POLL_INTERVAL)
-    return () => clearInterval(interval)
-  }, [isYT, onTimeUpdate, ytReady])
-
-  useEffect(() => {
-    if (!isYT) return
-    const handler = (e: MessageEvent) => {
-      if (e.origin !== YT_ORIGIN && e.origin !== 'https://www.youtube.com') return
-      let data = e.data as { event?: string; info?: { currentTime?: number } } | null
-      if (typeof e.data === 'string') {
-        try { data = JSON.parse(e.data) as typeof data } catch { return }
-      }
-      if (data && typeof data === 'object' && data.event === 'onReady') {
-        setYtReady(true)
-        return
-      }
-      if (
-        data && typeof data === 'object' &&
-        data.event === 'infoDelivery' &&
-        typeof data.info?.currentTime === 'number' && onTimeUpdate
-      ) {
-        onTimeUpdate(data.info.currentTime)
-      }
+      setPlaying((p) => !p)
     }
-    window.addEventListener('message', handler)
-    return () => window.removeEventListener('message', handler)
-  }, [isYT, onTimeUpdate])
+  }, [isDocument, ytReady, playing])
 
-  useEffect(() => setYtReady(false), [url, isYT])
+  const poke = () => {
+    setIdle(false)
+    if (idleTimer.current) clearTimeout(idleTimer.current)
+    idleTimer.current = setTimeout(() => {
+      if (playing) setIdle(true)
+    }, IDLE_MS)
+  }
 
-  const pct = duration > 0 ? (currentTime / duration) * 100 : 0
+  // ─────────────────────────────────────────────────────────────
+  // RENDER 1: Document / Web Article Hero Card
+  // ─────────────────────────────────────────────────────────────
+  if (isDocument) {
+    const isWeb = !!url
+    const badgeText = isWeb ? 'Web Article' : ext ? `${ext.toUpperCase()} Document` : 'Document'
+    const docTitle = title || (isWeb ? url : 'Document Reader')
 
-  // ── YouTube: keep native iframe wrapper ────────────────────────
-  if (isYT) {
-    const videoId = parseYouTubeUrl(url)
-    const origin = typeof window !== 'undefined' ? encodeURIComponent(window.location.origin) : ''
     return (
-      <div className="aspect-video bg-black rounded-lg overflow-hidden">
+      <div
+        ref={containerRef}
+        className="relative overflow-hidden rounded-2xl border border-white/10 bg-stone-950/80 p-6 shadow-2xl backdrop-blur-2xl sm:p-8"
+      >
+        {/* Glow ambient */}
+        <div className="pointer-events-none absolute -left-20 -top-20 h-64 w-64 rounded-full bg-[#2BA6A0]/15 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-20 -right-20 h-64 w-64 rounded-full bg-[#C17EF9]/15 blur-3xl" />
+
+        <div className="relative z-10 flex flex-col gap-5">
+          {/* Top row: badge + link */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-br from-[#2BA6A0] to-[#C17EF9] text-white shadow-md">
+                {isWeb ? Icons.globe : Icons.document}
+              </span>
+              <span className="rounded-full border border-white/15 bg-white/5 px-2.5 py-1 text-xs font-semibold text-[#73CEC2]">
+                {badgeText}
+              </span>
+            </div>
+            {url && (
+              <a
+                href={url}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1.5 text-xs text-stone-400 transition-colors hover:text-white"
+              >
+                <span>Visit original source</span>
+                {Icons.external}
+              </a>
+            )}
+          </div>
+
+          {/* Title & read-along controls */}
+          <div>
+            <h2 className="font-display text-xl font-bold tracking-tight text-white sm:text-2xl">
+              {docTitle}
+            </h2>
+            <p className="mt-1 text-xs text-stone-400">
+              Interactive knowledge universe with full transcript, speaker awareness, and knowledge graph.
+            </p>
+          </div>
+
+          {/* Audio / Read-along transport bar */}
+          <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-white/10 bg-white/[0.04] p-3 backdrop-blur-md">
+            <button
+              type="button"
+              onClick={togglePlay}
+              aria-label={playing ? 'Pause read-along' : 'Play read-along'}
+              className="grid h-10 w-10 place-items-center rounded-full bg-gradient-to-br from-[#2BA6A0] to-[#C17EF9] text-white shadow-lg transition-transform hover:scale-105 active:scale-95"
+            >
+              <span className="h-5 w-5">{playing ? Icons.pause : Icons.play}</span>
+            </button>
+
+            <div className="flex flex-col gap-0.5">
+              <span className="font-mono text-xs font-semibold text-white">
+                {formatTime(currentTime)}
+              </span>
+              <span className="text-[10px] text-stone-400">
+                {playing ? 'Read-along active' : 'Read-along tracker'}
+              </span>
+            </div>
+
+            {/* Quick Speed toggle */}
+            <div className="ml-auto flex items-center gap-1">
+              {SPEED_OPTIONS.slice(1, 5).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setRate(s)}
+                  className={`rounded-lg px-2 py-1 font-mono text-xs transition-colors ${
+                    rate === s ? 'bg-[#2BA6A0] font-bold text-white' : 'text-stone-400 hover:text-white'
+                  }`}
+                >
+                  {s}x
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // RENDER 2: YouTube Embed Player
+  // ─────────────────────────────────────────────────────────────
+  if (isYT) {
+    const videoId = parseYouTubeUrl(url!)
+    return (
+      <div
+        ref={containerRef}
+        className="relative aspect-video w-full overflow-hidden rounded-lg bg-black"
+      >
         <iframe
           ref={iframeRef}
-          src={`https://www.youtube-nocookie.com/embed/${videoId}?enablejsapi=1&playsinline=1&rel=0&origin=${origin}`}
-          className="w-full h-full"
+          src={`https://www.youtube-nocookie.com/embed/${videoId}?enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`}
+          title={title || 'YouTube video'}
+          className="h-full w-full"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          referrerPolicy="strict-origin-when-cross-origin"
-          title="YouTube video player"
           allowFullScreen
         />
       </div>
     )
   }
 
+  // ─────────────────────────────────────────────────────────────
+  // RENDER 3: HTML5 Media Player (Video or Audio)
+  // ─────────────────────────────────────────────────────────────
   const showControls = !playing || !idle
+  const pct = duration ? Math.min(100, (currentTime / duration) * 100) : 0
 
   return (
     <div
@@ -291,13 +330,15 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(({ url, filePath, title
       onMouseMove={poke}
       onMouseLeave={() => { if (videoRef.current && !videoRef.current.paused) setIdle(true) }}
       onClick={togglePlay}
-      className="user-select-none group relative aspect-video w-full overflow-hidden rounded-lg bg-black"
+      className={`user-select-none group relative w-full overflow-hidden rounded-lg bg-black ${
+        isAudio ? 'h-48' : 'aspect-video'
+      }`}
     >
       <video
         ref={videoRef}
         src={src}
-        aria-label={title || 'Video player'}
-        className="h-full w-full object-contain"
+        aria-label={title || (isAudio ? 'Audio player' : 'Video player')}
+        className={`h-full w-full ${isAudio ? 'hidden' : 'object-contain'}`}
         playsInline
         preload="metadata"
         onClick={(e) => { e.stopPropagation(); togglePlay() }}
@@ -309,9 +350,20 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(({ url, filePath, title
         onEnded={() => setPlaying(false)}
       />
 
-      {/* Center hover play overlay when idle/paused */}
+      {/* Audio Visualizer Card when media is audio-only */}
+      {isAudio && (
+        <div className="flex h-full w-full flex-col items-center justify-center gap-3 p-6 text-center">
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-[#2BA6A0]/20 via-transparent to-[#C17EF9]/20" />
+          <span className="grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-[#2BA6A0] to-[#C17EF9] text-white shadow-xl">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>
+          </span>
+          <p className="font-display text-lg font-bold text-white">{title || 'Audio Recording'}</p>
+        </div>
+      )}
+
+      {/* Big Play overlay */}
       <AnimatePresence>
-        {(!playing || idle) && currentTime === 0 && (
+        {(!playing || idle) && currentTime === 0 && !isAudio && (
           <motion.button
             type="button"
             key="bigplay"
@@ -362,7 +414,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(({ url, filePath, title
           aria-valuenow={currentTime}
           aria-valuetext={formatTime(currentTime)}
           tabIndex={0}
-          className="relative h-6 -mb-1 flex cursor-pointer items-center pt-3 focus:outline-none"
+          className="relative -mb-1 flex h-6 cursor-pointer items-center pt-3 focus:outline-none"
           onMouseMove={(e) => {
             const rect = e.currentTarget.getBoundingClientRect()
             const frac = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width))
@@ -375,35 +427,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(({ url, filePath, title
             const v = videoRef.current
             if (v) {
               v.currentTime = frac * v.duration
-              v.play()
-            }
-          }}
-          onKeyDown={(e) => {
-            const v = videoRef.current
-            if (!v) return
-            const seekTo = (seconds: number) => {
-              v.currentTime = Math.max(0, Math.min(seconds, v.duration || 0))
-              v.play()
-            }
-            switch (e.key) {
-              case 'ArrowRight':
-              case 'ArrowUp':
-                e.preventDefault()
-                seekTo(v.currentTime + SEEK_STEP)
-                break
-              case 'ArrowLeft':
-              case 'ArrowDown':
-                e.preventDefault()
-                seekTo(v.currentTime - SEEK_STEP)
-                break
-              case 'Home':
-                e.preventDefault()
-                seekTo(0)
-                break
-              case 'End':
-                e.preventDefault()
-                seekTo(v.duration || 0)
-                break
+              void v.play()
             }
           }}
         >
@@ -445,7 +469,12 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(({ url, filePath, title
           </span>
 
           <div className="flex items-center gap-1.5">
-            <button type="button" onClick={() => { const v = videoRef.current; if (v) { v.muted = !v.muted; setMuted(v.muted) } }} aria-label={muted ? 'Unmute' : 'Mute'} className="grid h-8 w-8 place-items-center text-white/90 hover:text-white">
+            <button
+              type="button"
+              onClick={() => { const v = videoRef.current; if (v) { v.muted = !v.muted; setMuted(v.muted) } }}
+              aria-label={muted ? 'Unmute' : 'Mute'}
+              className="grid h-8 w-8 place-items-center text-white/90 hover:text-white"
+            >
               <span className="h-[18px] w-[18px]">{muted || volume === 0 ? Icons.volumeMuted : Icons.volume}</span>
             </button>
             <input
@@ -454,18 +483,30 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(({ url, filePath, title
               max={1}
               step={0.05}
               value={muted ? 0 : volume}
-              onChange={(e) => { const val = Number(e.target.value); const v = videoRef.current; if (v) { v.volume = val; v.muted = val === 0; setVolume(val); setMuted(val === 0) } }}
+              onChange={(e) => {
+                const val = Number(e.target.value)
+                const v = videoRef.current
+                if (v) {
+                  v.volume = val
+                  v.muted = val === 0
+                  setVolume(val)
+                  setMuted(val === 0)
+                }
+              }}
               aria-label="Volume"
               className="h-1 w-16 cursor-pointer accent-[#2BA6A0]"
             />
           </div>
 
           <div className="ml-auto flex items-center gap-1.5">
-            {/* Speed menu */}
             <div className="relative">
               <button
                 type="button"
-                onClick={(e) => { e.stopPropagation(); setMenu((m) => (m === 'speed' ? null : 'speed')); if (idleTimer.current) clearTimeout(idleTimer.current) }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setMenu((m) => (m === 'speed' ? null : 'speed'))
+                  if (idleTimer.current) clearTimeout(idleTimer.current)
+                }}
                 aria-label="Playback speed"
                 aria-expanded={menu === 'speed'}
                 className="grid h-8 w-8 place-items-center rounded-full text-white/90 hover:text-white"
@@ -486,8 +527,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(({ url, filePath, title
                       <button
                         key={s}
                         type="button"
-                        onClick={(e) => { e.stopPropagation(); setRate(s); setMenu(null) }}
-                        className={`flex w-full items-center justify-between px-3 py-1.5 text-xs transition-colors hover:bg-white/10 ${rate === s ? 'text-[#73CEC2]' : 'text-white/85'}`}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setRate(s)
+                          const v = videoRef.current
+                          if (v) v.playbackRate = s
+                          setMenu(null)
+                        }}
+                        className={`flex w-full items-center justify-between px-3 py-1.5 text-xs transition-colors hover:bg-white/10 ${
+                          rate === s ? 'text-[#73CEC2]' : 'text-white/85'
+                        }`}
                       >
                         {s}x
                         {rate === s && <span className="h-1.5 w-1.5 rounded-full bg-[#2BA6A0]" />}
@@ -498,9 +547,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(({ url, filePath, title
               </AnimatePresence>
             </div>
 
-            <button type="button" onClick={toggleFullscreen} aria-label="Fullscreen" className="grid h-8 w-8 place-items-center rounded-full text-white/90 hover:text-white">
-              <span className="h-[18px] w-[18px]">{Icons.fullscreen}</span>
-            </button>
+            {!isAudio && (
+              <button
+                type="button"
+                onClick={toggleFullscreen}
+                aria-label="Fullscreen"
+                className="grid h-8 w-8 place-items-center rounded-full text-white/90 hover:text-white"
+              >
+                <span className="h-[18px] w-[18px]">{Icons.fullscreen}</span>
+              </button>
+            )}
           </div>
         </div>
       </motion.div>

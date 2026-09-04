@@ -13,6 +13,62 @@ def llm_available() -> bool:
     return bool(settings.llm_api_key) or settings.ollama_enabled
 
 
+OPENROUTER_FALLBACK_MODELS = [
+    "nvidia/nemotron-3.5-lightning:free",
+    "meta-llama/llama-3.3-70b-instruct:free",
+    "google/gemini-2.0-flash-lite-preview-02-05:free",
+    "deepseek/deepseek-r1:free",
+    "google/gemini-2.0-flash-001",
+]
+
+
+def get_llm_status() -> dict:
+    """Return the current configuration status of LLM providers."""
+    key = settings.llm_api_key
+    has_key = bool(key)
+    masked_key = f"{key[:8]}...{key[-4:]}" if (has_key and len(key) > 12) else ("***" if has_key else "")
+    return {
+        "configured": has_key or settings.ollama_enabled,
+        "provider": "OpenRouter" if has_key else ("Ollama" if settings.ollama_enabled else "none"),
+        "has_openrouter_key": has_key,
+        "masked_key": masked_key,
+        "model": settings.llm_model,
+        "api_url": settings.llm_api_url,
+    }
+
+
+async def verify_openrouter_key(api_key: str | None = None) -> dict:
+    """Verify an OpenRouter API key by making a lightweight query or auth check."""
+    import httpx
+    key = api_key or settings.llm_api_key
+    if not key:
+        return {"valid": False, "error": "No OpenRouter API key provided"}
+
+    headers = {
+        "Authorization": f"Bearer {key}",
+        "HTTP-Referer": "http://localhost:5173",
+        "X-Title": "KnoVid Knowledge Engine",
+    }
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            # OpenRouter provides an auth key inspection endpoint: /api/v1/auth/key
+            resp = await client.get("https://openrouter.ai/api/v1/auth/key", headers=headers)
+            if resp.status_code == 200:
+                data = resp.json()
+                label = data.get("data", {}).get("label") or "OpenRouter Key"
+                usage = data.get("data", {}).get("usage", 0)
+                limit = data.get("data", {}).get("limit", "none")
+                return {"valid": True, "label": label, "usage": usage, "limit": limit, "model": settings.llm_model}
+            elif resp.status_code == 401:
+                return {"valid": False, "error": "Invalid OpenRouter API key (Unauthorized)"}
+            elif resp.status_code == 402:
+                return {"valid": False, "error": "OpenRouter account credit limit reached"}
+            else:
+                return {"valid": False, "error": f"OpenRouter returned status {resp.status_code}"}
+    except Exception as e:
+        return {"valid": False, "error": f"Network error testing key: {str(e)}"}
+
+
 async def _call_provider(
     client,
     provider: str,
@@ -23,7 +79,11 @@ async def _call_provider(
     user: str,
 ) -> str | None:
     import time
-    headers = {"Content-Type": "application/json"}
+    headers = {
+        "Content-Type": "application/json",
+        "HTTP-Referer": "http://localhost:5173",
+        "X-Title": "KnoVid Knowledge Engine",
+    }
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
 
@@ -53,7 +113,6 @@ async def _call_provider(
     resp.raise_for_status()
     data = resp.json()
     content = data["choices"][0]["message"]["content"]
-    # Also log reasoning if present (nemotron)
     reasoning = data["choices"][0]["message"].get("reasoning", "")
     if reasoning:
         logger.info(f"  {provider} reasoning {len(reasoning)}c")
@@ -64,15 +123,29 @@ async def _call_provider(
     return None
 
 
-async def call_llm(system: str, user: str) -> str | None:
+async def call_llm(
+    system: str,
+    user: str,
+    api_key_override: str | None = None,
+    model_override: str | None = None,
+) -> str | None:
     providers = []
-    if settings.llm_api_key:
-        providers.append(("OpenRouter", settings.llm_api_url, settings.llm_api_key, settings.llm_model))
+    active_key = api_key_override or settings.llm_api_key
+    active_model = model_override or settings.llm_model
+
+    if active_key:
+        providers.append(("OpenRouter", settings.llm_api_url, active_key, active_model))
+        # Add fallback models if primary model is busy/rate-limited
+        for fb_model in OPENROUTER_FALLBACK_MODELS:
+            if fb_model != active_model:
+                providers.append(("OpenRouter", settings.llm_api_url, active_key, fb_model))
+
     if settings.ollama_enabled:
         providers.append(("Ollama", settings.ollama_api_url, settings.ollama_api_key, settings.ollama_model))
 
     if not providers:
         logger.warning("⚠ call_llm: NO providers configured (LLM_API_KEY missing and OLLAMA_ENABLED=false) — will use template fallback")
+
         return None
     logger.info(f"call_llm: trying {len(providers)} provider(s): {[p[0] for p in providers]} — sys {len(system)}c user {len(user)}c")
 

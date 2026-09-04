@@ -35,6 +35,11 @@ spacy>=3.8
 scikit-learn>=1.6
 numpy>=2.1
 
+# Document and web scraping dependencies
+beautifulsoup4>=4.12
+pypdf>=5.0
+python-docx>=1.1
+
 # Optional speaker diarization. Requires a HF_TOKEN at runtime; transcription
 # still works without it. Needs a build that matches your Python version.
 # pyannote.audio>=3.3

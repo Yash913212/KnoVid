@@ -19,16 +19,47 @@ from app.schemas.schemas import (
     TranslateRequest,
     TranslateResponse,
 )
-from app.services.llm import call_llm, format_transcript, llm_available
+from app.core.config import settings
+from app.services.llm import (
+    call_llm,
+    format_transcript,
+    get_llm_status,
+    llm_available,
+    verify_openrouter_key,
+)
 from app.services.media import require_auth
 from app.services.templates import (
     format_ts,
     template_answer,
     template_generate,
 )
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+class VerifyKeyRequest(BaseModel):
+    apiKey: str | None = None
+
+
+@router.get("/llm/status")
+def check_llm_status():
+    """Report LLM configuration status."""
+    return get_llm_status()
+
+
+@router.post("/llm/verify")
+async def check_key(req: VerifyKeyRequest):
+    """Test an OpenRouter key against OpenRouter's verification endpoint."""
+    return await verify_openrouter_key(req.apiKey)
+
+
+@router.post("/llm/reload")
+def reload_llm_config():
+    """Reload environment variables from .env."""
+    settings.reload()
+    return get_llm_status()
 
 
 @router.post("/generate", response_model=GenerateResponse)

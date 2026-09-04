@@ -82,6 +82,7 @@ export async function uploadVideo(
 ) {
   const form = new FormData()
   form.append('video', file)
+  form.append('file', file)
   form.append('targetLanguage', targetLanguage)
   const { data } = await api.post('/videos/upload', form, {
     onUploadProgress: (e) => {

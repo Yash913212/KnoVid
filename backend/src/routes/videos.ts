@@ -24,9 +24,10 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage, limits: { fileSize: 2 * 1024 * 1024 * 1024 } });
 
-router.post("/upload", authMiddleware, upload.single("video"), async (req: AuthRequest, res: Response) => {
+router.post("/upload", authMiddleware, upload.any(), async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.file) {
+    const file = req.file || (Array.isArray(req.files) ? req.files[0] : undefined);
+    if (!file) {
       res.status(400).json({ error: "No file provided" });
       return;
     }
@@ -34,8 +35,8 @@ router.post("/upload", authMiddleware, upload.single("video"), async (req: AuthR
     const targetLanguage = (req.body.targetLanguage || "en").trim();
     const video = await createVideo({
       source: "upload",
-      originalName: req.file.originalname,
-      filePath: req.file.path,
+      originalName: file.originalname,
+      filePath: file.path,
       ownerId: req.userId!,
       targetLanguage,
     });
@@ -45,7 +46,7 @@ router.post("/upload", authMiddleware, upload.single("video"), async (req: AuthR
       {
         videoId: video._id,
         type: "upload",
-        filePath: req.file.path,
+        filePath: file.path,
         targetLanguage,
       },
       { jobId: video._id, attempts: 2, backoff: { type: "exponential", delay: 5000 } }
