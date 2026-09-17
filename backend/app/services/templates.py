@@ -48,7 +48,7 @@ def template_generate(type_: str, full_text: str, segments: list) -> str:
         parts.append("*Note: Install an LLM API key for better quiz generation.*")
         return "\n".join(parts)
 
-    return "Content generation requires an LLM provider (set LLM_API_KEY or enable Ollama)."
+    return "Content generation requires an OpenRouter API key (set LLM_API_KEY)."
 
 
 def template_answer(question: str, context: str, full_text: str) -> str:
@@ -67,4 +67,4 @@ def template_answer(question: str, context: str, full_text: str) -> str:
     if top:
         return "Based on the transcript:\n\n" + "\n".join(f"- {t}." for t in top)
     return ("I couldn't find specific information about that in the transcript. "
-            "Try rephrasing your question or set LLM_API_KEY / enable Ollama for AI-powered answers.")
+            "Try rephrasing your question or set LLM_API_KEY for an AI-powered answer.")

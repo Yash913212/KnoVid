@@ -309,7 +309,7 @@ export default function VideoDetail() {
                   → {LANGUAGES.find((l) => l.code === targetLang)?.label}
                 </Chip>
               ) : (
-                <Chip>Install LLM_API_KEY for translations</Chip>
+                <Chip>Set OpenRouter LLM_API_KEY for translations</Chip>
               )}
             </motion.span>
           )}

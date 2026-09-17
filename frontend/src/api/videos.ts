@@ -97,17 +97,33 @@ export async function submitUrl(url: string, targetLanguage = 'en') {
   return data as { id: string; status: string }
 }
 
+function mapVideo(v: any): Video {
+  return {
+    ...v,
+    _id: v.id || v._id,
+    originalName: v.original_name || v.originalName || '',
+    filePath: v.file_path || v.filePath,
+    errorMessage: v.error_message || v.errorMessage,
+    createdAt: v.created_at || v.createdAt
+  }
+}
+
 export async function getVideos() {
   const { data } = await api.get('/videos')
-  return data as Video[]
+  return (data as any[]).map(mapVideo) as Video[]
 }
 
 export async function getVideo(id: string) {
   const { data } = await api.get(`/videos/${id}`)
-  return data as Video
+  return mapVideo(data) as Video
 }
 
 export async function retryVideo(id: string) {
   const { data } = await api.post('/videos/' + id + '/retry')
   return data as { id: string; status: string }
+}
+
+export async function deleteVideo(id: string) {
+  const { data } = await api.delete('/videos/' + id)
+  return data as { id: string; deleted: boolean }
 }

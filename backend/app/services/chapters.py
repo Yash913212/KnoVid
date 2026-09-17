@@ -139,7 +139,7 @@ def segment_chapters(segments: list[SegmentOut]) -> list[ChapterOut]:
 
 async def refine_chapter_titles(chapters: list[ChapterOut]) -> list[ChapterOut]:
     """Optionally ask the LLM to produce concise, human-readable titles."""
-    if not chapters or not settings.llm_api_key and not settings.ollama_enabled:
+    if not chapters or not settings.llm_api_key:
         return chapters
 
     blocks = "\n".join(

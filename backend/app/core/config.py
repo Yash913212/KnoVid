@@ -61,6 +61,13 @@ class Settings:
         self.max_video_duration_s = int(os.getenv("MAX_VIDEO_DURATION_S", "10800"))  # 3h
         self.download_timeout_s = int(os.getenv("DOWNLOAD_TIMEOUT_S", "600"))
 
+        # Database and Auth (Supabase)
+        self.supabase_url = os.getenv("SUPABASE_URL", "")
+        self.supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", os.getenv("SUPABASE_SECRET_KEY", ""))
+        self.supabase_jwks_url = os.getenv("SUPABASE_JWKS_URL", f"{self.supabase_url}/rest/v1/")
+
+        # Redis / Queue
+        self.redis_url = os.getenv("REDIS_URL", "redis://127.0.0.1:6379")
 
 settings = Settings()
 

@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.routers.content import router as content_router
 from app.routers.media import router as media_router
+from app.routers.api import router as api_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -87,8 +88,9 @@ async def log_requests(request: Request, call_next):
 
 app.include_router(media_router, tags=["media"])
 app.include_router(content_router, tags=["content"])
+app.include_router(api_router, tags=["api"])
 
-logger.info("LLM config: url=%s model=%s key=%s ollama=%s", settings.llm_api_url, settings.llm_model, ("set" if settings.llm_api_key else "MISSING"), settings.ollama_enabled)
+logger.info("LLM config: provider=OpenRouter url=%s model=%s key=%s", settings.llm_api_url, settings.llm_model, ("set" if settings.llm_api_key else "MISSING"))
 
 
 @app.get("/health")

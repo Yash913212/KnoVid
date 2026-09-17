@@ -1,7 +1,7 @@
 """LLM-backed content endpoints: /generate, /chat, /fuse, /translate.
 
 Every endpoint has a deterministic template fallback so it still works when
-no LLM provider (OpenRouter / Ollama) is configured.
+the OpenRouter key is not configured.
 """
 import logging
 import re
@@ -188,7 +188,7 @@ async def fuse_concepts(req: FuseRequest, _auth: None = Depends(require_auth)):
                 f"- [{c.speaker or 'Speaker'} @ {format_ts(c.time)}] {c.text[:140]}"
                 for c in citations[:3]
             )
-            + "\n\nSet an LLM_API_KEY for a fully synthesized connection."
+                + "\n\nSet an OpenRouter LLM_API_KEY for a fully synthesized connection."
         ),
         citations=citations,
     )

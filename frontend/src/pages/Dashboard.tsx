@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef, useCallback, Fragment, lazy, Suspense } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { AnimatePresence, animate, motion } from 'motion/react'
-import { uploadVideo, submitUrl, getVideos, retryVideo, STATUS_LABELS, STATUS_PROGRESS, getStatusStep, isProcessing, type Video, type VideoStatus } from '../api/videos'
+import { uploadVideo, submitUrl, getVideos, retryVideo, deleteVideo, STATUS_LABELS, STATUS_PROGRESS, getStatusStep, isProcessing, type Video, type VideoStatus } from '../api/videos'
 import { fadeUpLift, scaleFade, tw, staggerContainer, staggerItem, transitions } from '../lib/motion'
 import { useToast } from '../components/Toast'
 import Magnetic from '../components/Magnetic'
 import { formatTime, errorMessage } from '../utils'
 import { getResume } from '../lib/resume'
-import { FileText, Sparkles } from 'lucide-react'
+import { FileText, Sparkles, Trash2 } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
 import { Segmented } from '../components/ui/Segmented'
@@ -201,6 +201,16 @@ export default function Dashboard() {
       if (data) startPollIfNeeded(data)
     } catch {
       toast('Retry failed', 'error')
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteVideo(id)
+      toast('Video deleted', 'success')
+      setVideos((prev) => prev.filter((v) => v._id !== id))
+    } catch {
+      toast('Failed to delete video', 'error')
     }
   }
 
@@ -492,9 +502,9 @@ export default function Dashboard() {
                   <AnimatePresence mode="popLayout">
                     {displayVideos.map((v) =>
                       viewMode === 'list' ? (
-                        <KnowledgeRow key={v._id} video={v} onClick={() => navigate(`/video/${v._id}`)} onRetry={handleRetry} />
+                        <KnowledgeRow key={v._id} video={v} onClick={() => navigate(`/video/${v._id}`)} onRetry={handleRetry} onDelete={handleDelete} />
                       ) : (
-                        <KnowledgeCard key={v._id} video={v} onClick={() => navigate(`/video/${v._id}`)} onRetry={handleRetry} />
+                        <KnowledgeCard key={v._id} video={v} onClick={() => navigate(`/video/${v._id}`)} onRetry={handleRetry} onDelete={handleDelete} />
                       )
                     )}
                   </AnimatePresence>
@@ -1010,10 +1020,10 @@ function ValuePipeline({ flowStates, heading }: { flowStates: FlowState[]; headi
 /* ─── Knowledge card (video "universe") ──────────────────────────────── */
 
 const THUMB_GRADS = [
-  'from-[#17090f] via-[#2a0e1f] to-[#0a0a0f]',
-  'from-[#2a0e1f] via-[#3b0a2e] to-[#1f0d0a]',
-  'from-[#1f0d0a] via-[#2a0e1f] to-[#17090f]',
-  'from-[#2a0e1f] via-[#3a0f1e] to-[#0a0a0f]',
+  'from-[#0F172A] via-[#1E293B] to-[#020617]',
+  'from-[#1e1e24] via-[#2a2a35] to-[#0b0b10]',
+  'from-[#0f172a] via-[#111827] to-[#030712]',
+  'from-[#171717] via-[#262626] to-[#0a0a0a]',
 ]
 
 function thumbGrad(id: string): string {
@@ -1111,7 +1121,7 @@ function ProcessingRow({ video, onClick }: { video: Video; onClick: () => void }
   )
 }
 
-function KnowledgeCard({ video, onClick, onRetry }: { video: Video; onClick: () => void; onRetry: (id: string) => void }) {
+function KnowledgeCard({ video, onClick, onRetry, onDelete }: { video: Video; onClick: () => void; onRetry: (id: string) => void; onDelete: (id: string) => void }) {
   const failed = video.status === 'failed'
   const processing = isProcessing(video.status)
   const done = video.status === 'done'
@@ -1258,10 +1268,20 @@ function KnowledgeCard({ video, onClick, onRetry }: { video: Video; onClick: () 
             </span>
           )}
 
-          <span className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-black/30 px-2.5 py-1 text-[11px] font-semibold text-white/90 backdrop-blur-md">
-            {video.source === 'url' ? <IconLink className="h-3 w-3" /> : <IconUpload className="h-3 w-3" />}
-            {video.source === 'url' ? 'URL' : 'Upload'}
-          </span>
+          <div className="absolute right-3 top-3 flex gap-1.5">
+            <Badge className="bg-black/30 text-white backdrop-blur-md border-white/10" icon={video.source === 'url' ? <IconLink className="h-3 w-3" /> : <IconUpload className="h-3 w-3" />}>
+              {video.source === 'url' ? 'URL' : 'Upload'}
+            </Badge>
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onDelete(video._id)
+              }}
+              className="flex h-[26px] w-[26px] items-center justify-center rounded-full bg-black/30 text-white/70 backdrop-blur-md border border-white/10 transition hover:bg-red-500/80 hover:text-white"
+            >
+              <Trash2 size={13} />
+            </button>
+          </div>
 
           <div className="absolute inset-0 grid place-items-center bg-black/0 transition-colors duration-300 group-hover:bg-black/40">
             <span className="grid h-12 w-12 scale-75 place-items-center rounded-full bg-white/20 text-white opacity-0 backdrop-blur-sm transition-all duration-300 group-hover:scale-100 group-hover:opacity-100">
@@ -1350,7 +1370,7 @@ function KnowledgeCard({ video, onClick, onRetry }: { video: Video; onClick: () 
 }
 
 // Dense list view — thumbnail on the left, metadata flowing right.
-function KnowledgeRow({ video, onClick, onRetry }: { video: Video; onClick: () => void; onRetry: (id: string) => void }) {
+function KnowledgeRow({ video, onClick, onRetry, onDelete }: { video: Video; onClick: () => void; onRetry: (id: string) => void; onDelete: (id: string) => void }) {
   const failed = video.status === 'failed'
   const done = video.status === 'done'
   const resume = done ? getResume(video._id) : null
@@ -1443,6 +1463,17 @@ function KnowledgeRow({ video, onClick, onRetry }: { video: Video; onClick: () =
           Retry
         </Button>
       )}
+
+      <button
+        onClick={(e) => {
+          e.stopPropagation()
+          onDelete(video._id)
+        }}
+        className="ml-3 shrink-0 flex h-8 w-8 items-center justify-center rounded-full bg-white/50 border border-black/5 text-stone-400 transition hover:bg-red-500 hover:text-white hover:border-red-500 dark:bg-white/5 dark:border-white/10 dark:text-stone-500 dark:hover:bg-red-500/80 dark:hover:text-white"
+      >
+        <Trash2 size={14} />
+      </button>
+
     </motion.div>
   )
 }

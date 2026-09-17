@@ -4,12 +4,11 @@
   "private": true,
   "description": "KnoVid \u2014 video to knowledge: transcripts, speaker labels, knowledge graphs, notes, quizzes, and Q&A",
   "scripts": {
-    "dev": "concurrently -n backend,processor,frontend -c blue,magenta,green \"npm run dev:backend\" \"npm run dev:processor\" \"npm run dev:frontend\"",
-    "dev:backend": "npm --prefix backend run dev",
-    "dev:processor": "node scripts/python.js -m uvicorn --app-dir processing-service main:app --reload --port 8000 --env-file processing-service/.env",
+    "dev": "concurrently -n api,frontend -c blue,green \"npm run dev:api\" \"npm run dev:frontend\"",
+    "dev:api": "node scripts/python.js -m uvicorn --app-dir backend main:app --reload --port 8000 --env-file backend/.env",
     "dev:frontend": "npm --prefix frontend run dev",
-    "install:all": "npm --prefix backend install && npm --prefix frontend install",
-    "setup:python": "cd processing-service && node ../scripts/python.js -m pip install --no-build-isolation -r requirements.txt",
+    "install:all": "npm --prefix frontend install",
+    "setup:python": "cd backend && node ../scripts/python.js -m pip install --no-build-isolation -r requirements.txt",
     "setup:spacy": "node scripts/python.js -m spacy download en_core_web_sm"
   },
   "devDependencies": {
