@@ -1,15 +1,31 @@
 import { motion } from 'motion/react'
 import { Moon, Sun } from 'lucide-react'
+import { flushSync } from 'react-dom'
 import { useTheme } from '../context/ThemeContext'
 import { transitions } from '../lib/motion'
 
 export default function ThemeToggle() {
   const { theme, toggleTheme } = useTheme()
   const dark = theme === 'dark'
+
+  const handleToggle = (e: React.MouseEvent<HTMLButtonElement>) => {
+    // Fallback for browsers that don't support View Transitions API
+    if (!document.startViewTransition) {
+      toggleTheme()
+      return
+    }
+
+    const transition = document.startViewTransition(() => {
+      flushSync(() => {
+        toggleTheme()
+      })
+    })
+  }
+
   return (
     <motion.button
       type="button"
-      onClick={toggleTheme}
+      onClick={handleToggle}
       aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
       title={dark ? 'Switch to light mode' : 'Switch to dark mode'}
       whileTap={{ scale: 0.92 }}

@@ -1,4 +1,4 @@
-"""OpenRouter LLM client with deterministic template fallbacks."""
+"""Groq LLM client with deterministic template fallbacks."""
 import logging
 
 from app.core.config import settings
@@ -8,8 +8,38 @@ logger = logging.getLogger(__name__)
 
 
 def llm_available() -> bool:
-    """True when the required OpenRouter key is configured."""
+    """True when the required LLM key is configured."""
     return bool(settings.llm_api_key)
+
+
+def get_llm_status() -> dict:
+    provider = "Groq" if "groq" in settings.llm_api_url.lower() else "LLM API"
+    return {
+        "available": bool(settings.llm_api_key),
+        "provider": provider,
+        "model": settings.llm_model,
+        "url": settings.llm_api_url
+    }
+
+
+async def verify_llm_key(api_key: str | None, api_url: str | None = None) -> dict:
+    import httpx
+    if not api_key:
+        return {"valid": False, "error": "No key provided"}
+    
+    url = api_url or settings.llm_api_url
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            base_url = url.replace("/chat/completions", "").rstrip("/")
+            resp = await client.get(
+                f"{base_url}/models",
+                headers={"Authorization": f"Bearer {api_key}"}
+            )
+            if resp.status_code == 200:
+                return {"valid": True, "data": resp.json()}
+            return {"valid": False, "error": f"HTTP {resp.status_code}: {resp.text}"}
+    except Exception as e:
+        return {"valid": False, "error": str(e)}
 
 
 async def _call_provider(
@@ -66,10 +96,11 @@ async def _call_provider(
 
 async def call_llm(system: str, user: str) -> str | None:
     if not settings.llm_api_key:
-        logger.warning("⚠ call_llm: OPENROUTER_API_KEY missing — will use template fallback")
+        logger.warning("⚠ call_llm: LLM_API_KEY missing — will use template fallback")
         return None
-    provider = ("OpenRouter", settings.llm_api_url, settings.llm_api_key, settings.llm_model)
-    logger.info(f"call_llm: using OpenRouter — sys {len(system)}c user {len(user)}c")
+    provider_name = "Groq" if "groq" in settings.llm_api_url.lower() else "LLM API"
+    provider = (provider_name, settings.llm_api_url, settings.llm_api_key, settings.llm_model)
+    logger.info(f"call_llm: using {provider_name} — sys {len(system)}c user {len(user)}c")
 
     import httpx
     # A 401/402/403 means the key is bad, exhausted, or spend-limited.
@@ -96,7 +127,7 @@ async def call_llm(system: str, user: str) -> str | None:
                             pass
                     traceback.print_exc()
                     if status in terminal_status:
-                        logger.warning("%s rejected the request (HTTP %s). Check the OpenRouter key and model access.", provider_name, status)
+                        logger.warning("%s rejected the request (HTTP %s). Check the LLM key and model access.", provider_name, status)
                         break
                     logger.warning("%s call failed (attempt %d/2): %r", provider_name, attempt + 1, e)
     except Exception as e:  # noqa: BLE001

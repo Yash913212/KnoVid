@@ -27,4 +27,4 @@ backend/uploads/
 # OS / editor
 .DS_Store
 .idea/
-.vscode/
+.vscode/backend/bin/

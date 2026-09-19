@@ -14,7 +14,7 @@ BACKEND_ENV = Path(__file__).resolve().parents[3] / "backend" / ".env"
 SERVICE_ENV = Path(__file__).resolve().parents[2] / ".env"
 DEFAULT_UPLOAD_DIR = Path(__file__).resolve().parents[3] / "backend" / "uploads"
 
-# Load service env first, then backend env for any missing vars (e.g. OPENROUTER_API_KEY)
+# Load service env first, then backend env for any missing vars
 load_dotenv(SERVICE_ENV)
 load_dotenv(BACKEND_ENV, override=False)
 
@@ -35,14 +35,9 @@ class Settings:
         # to present it via the X-Processing-Auth header.
         self.processing_auth_token = os.getenv("PROCESSING_AUTH_TOKEN", "")
 
-        # OpenRouter / LLM provider settings.
-        self.openrouter_api_key = os.getenv("OPENROUTER_API_KEY", "").strip()
-        self.llm_api_key = self.openrouter_api_key or os.getenv("LLM_API_KEY", "").strip()
-        self.llm_api_url = os.getenv("LLM_API_URL", "").strip()
-
-        if self.openrouter_api_key or self.llm_api_key.startswith("sk-or"):
-            self.llm_api_url = self.llm_api_url or "https://openrouter.ai/api/v1"
-        self.llm_api_url = self.llm_api_url or "https://openrouter.ai/api/v1"
+        # LLM provider settings.
+        self.llm_api_key = os.getenv("LLM_API_KEY", "").strip()
+        self.llm_api_url = os.getenv("LLM_API_URL", "").strip() or "https://api.groq.com/openai/v1"
 
         self.llm_model = os.getenv("LLM_MODEL", "nvidia/nemotron-3.5-lightning:free")
         self.ollama_enabled = os.getenv("OLLAMA_ENABLED", "false").lower() in {"1", "true", "yes", "on"}

@@ -1,7 +1,7 @@
 """LLM-backed content endpoints: /generate, /chat, /fuse, /translate.
 
 Every endpoint has a deterministic template fallback so it still works when
-the OpenRouter key is not configured.
+the LLM key is not configured.
 """
 import logging
 import re
@@ -26,7 +26,7 @@ from app.services.llm import (
     format_transcript,
     get_llm_status,
     llm_available,
-    verify_openrouter_key,
+    verify_llm_key,
 )
 from app.services.media import require_auth
 from app.services.templates import (
@@ -43,6 +43,10 @@ router = APIRouter()
 class VerifyKeyRequest(BaseModel):
     apiKey: str | None = None
 
+class SaveKeyRequest(BaseModel):
+    apiKey: str
+    model: str | None = None
+
 
 @router.get("/llm/status")
 def check_llm_status():
@@ -52,8 +56,34 @@ def check_llm_status():
 
 @router.post("/llm/verify")
 async def check_key(req: VerifyKeyRequest):
-    """Test an OpenRouter key against OpenRouter's verification endpoint."""
-    return await verify_openrouter_key(req.apiKey)
+    """Test an LLM key against the provider's verification endpoint."""
+    return await verify_llm_key(req.apiKey)
+
+
+@router.post("/llm/key")
+def save_llm_key(req: SaveKeyRequest):
+    """Save the LLM key and model to the .env file."""
+    import dotenv
+    from app.core.config import BACKEND_ENV
+    
+    env_path = str(BACKEND_ENV)
+    
+    if req.apiKey.startswith("gsk_"):
+        dotenv.set_key(env_path, "LLM_API_KEY", req.apiKey)
+        dotenv.set_key(env_path, "LLM_API_URL", "https://api.groq.com/openai/v1")
+    else:
+        dotenv.set_key(env_path, "LLM_API_KEY", req.apiKey)
+        
+    if req.model:
+        dotenv.set_key(env_path, "LLM_MODEL", req.model)
+
+    settings.reload()
+    
+    return {
+        "success": True, 
+        "has_key": bool(settings.llm_api_key), 
+        "masked_key": f"...{settings.llm_api_key[-4:]}" if len(settings.llm_api_key) >= 4 else ""
+    }
 
 
 @router.post("/llm/reload")
@@ -188,7 +218,7 @@ async def fuse_concepts(req: FuseRequest, _auth: None = Depends(require_auth)):
                 f"- [{c.speaker or 'Speaker'} @ {format_ts(c.time)}] {c.text[:140]}"
                 for c in citations[:3]
             )
-                + "\n\nSet an OpenRouter LLM_API_KEY for a fully synthesized connection."
+                + "\n\nSet an LLM_API_KEY for a fully synthesized connection."
         ),
         citations=citations,
     )

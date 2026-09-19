@@ -425,7 +425,7 @@ export default function Dashboard() {
                   <div className="divide-y divide-black/[0.05] dark:divide-white/5">
                     <AnimatePresence mode="popLayout">
                       {activeVideos.map((v) => (
-                        <ProcessingRow key={v._id} video={v} onClick={() => navigate(`/video/${v._id}`)} />
+                        <ProcessingRow key={v._id} video={v} onClick={() => navigate(`/video/${v._id}`)} onDelete={() => handleDelete(v._id)} />
                       ))}
                     </AnimatePresence>
                   </div>
@@ -1069,7 +1069,7 @@ function CountUp({ value, suffix = '' }: { value: number; suffix?: string }) {
 }
 
 // Compact row inside the "Now processing" rail — calm, no giant cards.
-function ProcessingRow({ video, onClick }: { video: Video; onClick: () => void }) {
+function ProcessingRow({ video, onClick, onDelete }: { video: Video; onClick: () => void; onDelete?: () => void }) {
   const pct = STATUS_PROGRESS[video.status]
   return (
     <motion.div
@@ -1117,6 +1117,19 @@ function ProcessingRow({ video, onClick }: { video: Video; onClick: () => void }
         <IconSparkles className="h-3 w-3" />
         Mapping…
       </Badge>
+      {onDelete && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            onDelete()
+          }}
+          className="ml-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-lg opacity-0 transition-all hover:bg-red-500/10 group-hover:opacity-100 dark:hover:bg-red-500/20"
+          title="Delete"
+        >
+          🗑️
+        </button>
+      )}
     </motion.div>
   )
 }
@@ -1268,8 +1281,9 @@ function KnowledgeCard({ video, onClick, onRetry, onDelete }: { video: Video; on
             </span>
           )}
 
-          <div className="absolute right-3 top-3 flex gap-1.5">
-            <Badge className="bg-black/30 text-white backdrop-blur-md border-white/10" icon={video.source === 'url' ? <IconLink className="h-3 w-3" /> : <IconUpload className="h-3 w-3" />}>
+          <div className="absolute right-3 top-3 z-20 flex gap-1.5">
+            <Badge className="bg-black/30 text-white backdrop-blur-md border-white/10">
+              {video.source === 'url' ? <IconLink className="h-3 w-3" /> : <IconUpload className="h-3 w-3" />}
               {video.source === 'url' ? 'URL' : 'Upload'}
             </Badge>
             <button

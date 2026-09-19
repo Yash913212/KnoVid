@@ -14,6 +14,9 @@ from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 from fastapi import HTTPException, Request
 
+FFMPEG_BIN = str(Path(__file__).resolve().parents[2] / "bin" / "ffmpeg")
+FFPROBE_BIN = str(Path(__file__).resolve().parents[2] / "bin" / "ffprobe")
+
 from app.core.config import settings
 from app.core.models import get_diarization, get_whisper
 from app.schemas.schemas import SegmentOut
@@ -157,7 +160,7 @@ def extract_audio(video_path: Path, video_id: str) -> Path:
     audio_path = settings.upload_dir / f"{video_id}.wav"
     subprocess.run(
         [
-            "ffmpeg", "-y", "-nostdin",
+            FFMPEG_BIN, "-y", "-nostdin",
             "-i", str(video_path),
             "-vn",
             "-acodec", "pcm_s16le",
@@ -238,7 +241,7 @@ def assign_speakers(audio_path: Path, segments: list[SegmentOut], duration: floa
 def get_duration(path: Path) -> float:
     try:
         result = subprocess.run(
-            ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(path)],
+            [FFPROBE_BIN, "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(path)],
             check=True,
             capture_output=True,
             text=True,
@@ -249,7 +252,7 @@ def get_duration(path: Path) -> float:
         # Fallback: parse ffmpeg's duration line, "Duration: 00:01:23.45, ...".
         try:
             result = subprocess.run(
-                ["ffmpeg", "-i", str(path)],
+                [FFMPEG_BIN, "-i", str(path)],
                 capture_output=True,
                 text=True,
                 timeout=30,
